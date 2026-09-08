@@ -74,6 +74,36 @@ npm test
 Sobe três clientes, entra em salas de tema/estado/cidade, troca mensagens e checa
 histórico, membros e anti-flood.
 
+## Deploy
+
+O projeto sobe em qualquer host que rode Node e aceite WebSocket. **Não funciona** em
+Vercel/Netlify no modo serverless — o Socket.IO precisa de um processo que fique de pé.
+
+### Render (plano grátis)
+
+1. Suba o código para um repositório no GitHub.
+2. No [dashboard do Render](https://dashboard.render.com): **New +** → **Blueprint** → escolha o
+   repositório. O [render.yaml](render.yaml) já traz plano, build, start e health check.
+3. Depois do primeiro deploy, copie a URL gerada e crie a variável de ambiente
+   `ALLOWED_ORIGIN` com ela (ex.: `https://chatmaromba.onrender.com`). Isso trava os sockets
+   no seu domínio. Salvar dispara um novo deploy.
+
+No plano grátis o serviço hiberna após ~15 min sem visitas e leva alguns segundos para acordar.
+
+### Docker (Fly.io, Railway, VPS)
+
+```bash
+docker build -t chatmaromba .
+docker run -p 3000:3000 -e ALLOWED_ORIGIN=https://seu-dominio.com chatmaromba
+```
+
+### Variáveis de ambiente
+
+| Variável | Padrão | Para que serve |
+|---|---|---|
+| `PORT` | `3000` | Porta HTTP (os hosts definem sozinhos) |
+| `ALLOWED_ORIGIN` | `*` | Domínios que podem abrir socket, separados por vírgula |
+
 ## Antes de colocar no ar
 
 Este projeto roda em memória e sem autenticação — ótimo para uso local ou um deploy simples.
