@@ -1,9 +1,14 @@
 const { io } = require('socket.io-client');
 const URL = process.env.CHAT_URL || 'http://localhost:' + (process.env.PORT || 3000);
 
+let tokenSeq = 0;
+
+/** cada cliente tem seu token, como um navegador diferente teria */
 function connect() {
+  tokenSeq += 1;
+  const token = 'token-de-teste-' + tokenSeq + '-' + Date.now();
   return new Promise((resolve) => {
-    const s = io(URL, { transports: ['websocket'] });
+    const s = io(URL, { transports: ['websocket'], auth: { token } });
     s.on('connect', () => resolve(s));
   });
 }
@@ -63,7 +68,10 @@ function wait(ms) {
   await join(a.s, 'tema:venenos');
 
   const gotMessage = new Promise((resolve) => {
-    b.s.on('message', (m) => { if (m.type === 'chat') resolve(m); });
+    b.s.on('messages', (list) => {
+      const chat = list.find((m) => m.type === 'chat');
+      if (chat) resolve(chat);
+    });
   });
   a.s.emit('message', { text: 'bora treinar <script>alert(1)</script>' });
   const msg = await gotMessage;
@@ -138,7 +146,10 @@ function wait(ms) {
 
   // troca de nome dentro da sala vira aviso do sistema
   const renameNotice = new Promise((resolve) => {
-    b.s.on('message', (m) => { if (m.type === 'system' && m.text.includes('agora é')) resolve(m); });
+    b.s.on('messages', (list) => {
+      const found = list.find((m) => m.type === 'system' && m.text.includes('agora é'));
+      if (found) resolve(found);
+    });
   });
   await login(a.s, 'MonstroPro');
   const notice = await Promise.race([renameNotice, wait(800)]);
@@ -150,6 +161,89 @@ function wait(ms) {
   for (let i = 0; i < 20; i += 1) a.s.emit('message', { text: 'spam ' + i });
   await wait(600);
   check('anti-flood', flooded);
+
+  // ---------------------------------------------------------------- moderação
+  const MOD_PASS = process.env.MOD_PASSWORD || 'senha-de-teste';
+
+  const modo = await client('Xerife');
+  await join(modo.s, 'tema:treta');
+
+  const wrongPass = await new Promise((r) => modo.s.emit('mod-login', { password: 'errada' }, r));
+  check('senha de moderador errada é recusada', wrongPass.ok === false, wrongPass.message);
+
+  const modLogin = await new Promise((r) => modo.s.emit('mod-login', { password: MOD_PASS }, r));
+  check('login de moderador', modLogin.ok === true, modLogin.message);
+
+  const semPoder = await new Promise((r) =>
+    b.s.emit('mod-action', { action: 'mute', nick: 'MonstroPro' }, r));
+  check('usuário comum não modera', semPoder.ok === false, semPoder.message);
+
+  // silenciar de verdade
+  const arruaceiro = await client('Arruaceiro');
+  await join(arruaceiro.s, 'tema:treta');
+  const muteRes = await new Promise((r) =>
+    modo.s.emit('mod-action', { action: 'mute', nick: 'Arruaceiro', minutes: 5, reason: 'treta demais' }, r));
+  check('moderador silencia', muteRes.ok === true, muteRes.message);
+
+  const blockedSend = await new Promise((r) => arruaceiro.s.emit('message', { text: 'oi' }, r));
+  check('silenciado não consegue falar', blockedSend.ok === false && blockedSend.error === 'muted');
+
+  const pardonRes = await new Promise((r) =>
+    modo.s.emit('mod-action', { action: 'pardon', nick: 'Arruaceiro' }, r));
+  check('moderador libera', pardonRes.ok === true, pardonRes.message);
+  const afterPardon = await new Promise((r) => arruaceiro.s.emit('message', { text: 'voltei' }, r));
+  check('liberado volta a falar', afterPardon.ok === true);
+
+  // apagar mensagem
+  const deleted = new Promise((resolve) => arruaceiro.s.on('message-deleted', resolve));
+  await new Promise((r) => modo.s.emit('mod-action',
+    { action: 'delete', messageId: afterPardon.id, roomId: 'tema:treta' }, r));
+  const delEvent = await Promise.race([deleted, wait(800)]);
+  check('moderador apaga mensagem', Boolean(delEvent && delEvent.id === afterPardon.id));
+
+  // expulsar
+  const kickWarn = new Promise((resolve) => arruaceiro.s.on('kicked', resolve));
+  await new Promise((r) => modo.s.emit('mod-action', { action: 'kick', nick: 'Arruaceiro', reason: 'tchau' }, r));
+  check('moderador expulsa', Boolean(await Promise.race([kickWarn, wait(800)])));
+
+  // denúncia chega ao moderador
+  const gotReport = new Promise((resolve) => modo.s.on('report', resolve));
+  b.s.emit('report', { messageId: 'x1', nick: 'MonstroPro', text: 'mensagem feia' });
+  const report = await Promise.race([gotReport, wait(800)]);
+  check('denúncia chega ao moderador', Boolean(report && report.nick === 'MonstroPro'));
+
+  // ---------------------------------------------------------------- filtro automático
+  const spammer = await client('Spammer');
+  await join(spammer.s, 'tema:zoeira');
+  let autoMuted = null;
+  for (let i = 0; i < 5; i += 1) {
+    const r = await new Promise((r2) => spammer.s.emit('message', { text: 'COMPRA AQUI AMIGO' }, r2));
+    if (r && r.error === 'auto-mute') { autoMuted = r; break; }
+  }
+  check('filtro silencia mensagem repetida', Boolean(autoMuted));
+
+  const linkSpammer = await client('LinkSpam');
+  await join(linkSpammer.s, 'tema:zoeira');
+  const muitoLink = await new Promise((r) =>
+    linkSpammer.s.emit('message', { text: 'http://a.com http://b.com http://c.com' }, r));
+  check('filtro barra muro de links', muitoLink.ok === false && muitoLink.error === 'blocked');
+
+  [modo, arruaceiro, spammer, linkSpammer].forEach((x) => { try { x.s.close(); } catch (e) {} });
+
+  // ---------------------------------------------------------------- divisão de sala
+  const capacity = Number(process.env.ROOM_CAPACITY || 250);
+  if (capacity <= 5) {
+    const lotacao = [];
+    for (let i = 0; i < capacity + 1; i += 1) {
+      const extra = await client('Lotacao' + i);
+      const res = await join(extra.s, 'tema:natural');
+      lotacao.push({ extra, res });
+    }
+    const ultimo = lotacao[lotacao.length - 1].res;
+    check('sala cheia abre uma divisão nova',
+      ultimo.room.shard === 2 && ultimo.room.name.includes('Sala 2'), ultimo.room.name);
+    lotacao.forEach((x) => x.extra.s.close());
+  }
 
   const stats = await fetch(URL + '/api/stats').then((r) => r.json());
   check('GET /api/stats', stats.online >= 3, JSON.stringify(stats.counts));

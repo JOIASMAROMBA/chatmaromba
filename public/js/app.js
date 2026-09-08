@@ -76,6 +76,9 @@
     replyTo: null,
     members: [],
     membersTotal: 0,
+    isMod: false,
+    mutedUntil: 0,
+    banned: false,
     typingUsers: new Map(),
     typingSent: false,
     typingTimer: null,
@@ -166,6 +169,32 @@
     el.nickInput.classList.add('shake');
     el.nickInput.focus();
     el.nickInput.select();
+  }
+
+  /** tela cheia de bloqueio: banido ou expulso */
+  function showBlocked(title, reason, until) {
+    const quando = until
+      ? 'Liberado em ' + new Date(until).toLocaleString('pt-BR') + '.'
+      : 'Você pode voltar recarregando a página.';
+    document.body.innerHTML =
+      '<div class="blocked-screen">' +
+        '<span class="blocked-icon">🚫</span>' +
+        '<h1>' + escapeHtml(title) + '</h1>' +
+        '<p class="blocked-reason">' + escapeHtml(reason || 'sem motivo declarado') + '</p>' +
+        '<p class="blocked-when">' + escapeHtml(quando) + '</p>' +
+      '</div>';
+  }
+
+  /** trava o campo enquanto o silêncio durar */
+  function updateComposerLock() {
+    const muted = state.mutedUntil > Date.now();
+    el.messageInput.disabled = muted || !state.currentRoom;
+    el.sendBtn.disabled = el.messageInput.disabled;
+    if (muted) {
+      const min = Math.ceil((state.mutedUntil - Date.now()) / 60000);
+      el.messageInput.placeholder = 'Silenciado por mais ' + min + ' min';
+      setTimeout(updateComposerLock, Math.min(60000, state.mutedUntil - Date.now() + 500));
+    }
   }
 
   /** volta para a tela de entrada (apelido perdido, reconexão falhou) */
@@ -389,9 +418,13 @@
       el.roomName.textContent = res.room.name;
       el.roomTagline.textContent = res.room.tagline;
 
-      el.messageInput.disabled = false;
-      el.sendBtn.disabled = false;
       el.messageInput.placeholder = 'Manda a braba em ' + res.room.name + '...';
+      updateComposerLock();
+
+      // a sala pedida estava cheia e o servidor abriu outra divisão
+      if (res.movedTo) {
+        toast('Sala lotada — você entrou em ' + res.movedTo);
+      }
 
       renderHistory(res.history || []);
       markActiveRoom();
@@ -461,6 +494,7 @@
       const mine = state.me && msg.authorId === state.me.id;
       const node = document.createElement('div');
       node.className = 'msg' + (mine ? ' is-me' : '');
+      node.dataset.id = msg.id;
       node.dataset.nick = msg.nick;
       node.dataset.text = msg.text;
 
@@ -473,11 +507,16 @@
         '<div class="msg-body">' +
           '<div class="msg-head">' +
             '<span class="msg-nick" style="color:' + (mine ? '#cbb8ff' : (msg.color || '#fff')) + '">' + escapeHtml(msg.nick) + '</span>' +
+            (msg.mod ? '<span class="mod-badge">MOD</span>' : '') +
             '<span class="msg-time">' + timeLabel(msg.ts) + '</span>' +
           '</div>' +
           '<div class="msg-bubble">' + reply + renderText(msg.text) + '</div>' +
         '</div>' +
-        '<button class="reply-btn" type="button" title="Responder">↩</button>';
+        '<div class="msg-tools">' +
+          '<button class="reply-btn" type="button" title="Responder">↩</button>' +
+          (mine ? '' : '<button class="report-btn" type="button" title="Denunciar">🚩</button>') +
+          (state.isMod ? '<button class="del-btn" type="button" title="Apagar (mod)">🗑</button>' : '') +
+        '</div>';
 
       el.messages.appendChild(node);
     }
@@ -486,10 +525,35 @@
   }
 
   el.messages.addEventListener('click', (event) => {
-    const btn = event.target.closest('.reply-btn');
-    if (!btn) return;
-    const msg = btn.closest('.msg');
-    setReply(msg.dataset.nick, msg.dataset.text);
+    const msg = event.target.closest('.msg');
+    if (!msg) return;
+
+    if (event.target.closest('.reply-btn')) {
+      setReply(msg.dataset.nick, msg.dataset.text);
+      return;
+    }
+
+    if (event.target.closest('.report-btn')) {
+      state.socket.emit('report', {
+        messageId: msg.dataset.id,
+        nick: msg.dataset.nick,
+        text: msg.dataset.text
+      }, (res) => {
+        toast(res && res.ok
+          ? 'Denúncia enviada. A moderação vai olhar.'
+          : (res && res.error) || 'Não deu para denunciar agora.');
+      });
+      return;
+    }
+
+    if (event.target.closest('.del-btn')) {
+      state.socket.emit('mod-action', {
+        action: 'delete',
+        messageId: msg.dataset.id,
+        roomId: state.currentRoom,
+        nick: msg.dataset.nick
+      }, (res) => toast(res && res.message ? res.message : 'Feito.'));
+    }
   });
 
   // ------------------------------------------------------ resposta
@@ -511,13 +575,105 @@
 
   // ------------------------------------------------------ envio
 
+  /**
+   * Comandos de barra. `/mod <senha>` liga o modo moderador; os outros só
+   * respondem para quem já é moderador (o servidor confere de novo).
+   */
+  const COMMAND_HELP = [
+    '/mod <senha> — entra como moderador',
+    '/mute <apelido> [min] [motivo] — silencia',
+    '/ban <apelido> [min] [motivo] — bane e desconecta',
+    '/kick <apelido> [motivo] — expulsa (volta se quiser)',
+    '/liberar <apelido> — tira o castigo',
+    '/limpar — apaga o histórico da sala',
+    '/lista — castigos e denúncias em aberto'
+  ].join('\n');
+
+  function runCommand(raw) {
+    const parts = raw.slice(1).split(' ').filter(Boolean);
+    const cmd = (parts.shift() || '').toLowerCase();
+
+    if (cmd === 'ajuda' || cmd === 'help') {
+      systemNotice(COMMAND_HELP);
+      return true;
+    }
+
+    if (cmd === 'mod') {
+      const password = parts.join(' ');
+      if (!password) { systemNotice('Uso: /mod <senha>'); return true; }
+      state.socket.emit('mod-login', { password }, (res) => {
+        if (!res || !res.ok) return toast(res && res.message ? res.message : 'Não rolou.');
+        state.isMod = true;
+        document.body.classList.add('is-mod');
+        systemNotice('Você entrou como moderador. Digite /ajuda para ver os comandos.');
+        if (res.reports && res.reports.length) {
+          const abertas = res.reports.filter((r) => !r.resolved).length;
+          if (abertas) toast('🚨 ' + abertas + ' denúncias em aberto.');
+        }
+      });
+      return true;
+    }
+
+    const actions = { mute: 'mute', ban: 'ban', kick: 'kick', liberar: 'pardon' };
+    if (actions[cmd]) {
+      const nick = parts.shift();
+      if (!nick) { systemNotice('Uso: /' + cmd + ' <apelido> [minutos] [motivo]'); return true; }
+      const minutes = /^\d+$/.test(parts[0] || '') ? Number(parts.shift()) : null;
+      state.socket.emit('mod-action', {
+        action: actions[cmd], nick, minutes, reason: parts.join(' ')
+      }, (res) => toast(res && res.message ? res.message : 'Feito.'));
+      return true;
+    }
+
+    if (cmd === 'limpar') {
+      state.socket.emit('mod-action', { action: 'clear', roomId: state.currentRoom },
+        (res) => toast(res && res.message ? res.message : 'Feito.'));
+      return true;
+    }
+
+    if (cmd === 'lista') {
+      state.socket.emit('mod-action', { action: 'list' }, (res) => {
+        if (!res || !res.ok) return toast(res && res.message ? res.message : 'Não rolou.');
+        const castigos = res.punishments.length
+          ? res.punishments.map((p) => '• ' + (p.nick || p.key) + ' — ' + p.type + ' até ' +
+              new Date(p.until).toLocaleTimeString('pt-BR') + ' (' + p.reason + ')').join('\n')
+          : '• ninguém de castigo';
+        const denuncias = res.reports.filter((r) => !r.resolved);
+        const lista = denuncias.length
+          ? denuncias.slice(0, 10).map((r) => '• ' + r.nick + ': "' + r.text + '" (por ' + r.byNick + ')').join('\n')
+          : '• nenhuma denúncia aberta';
+        systemNotice('CASTIGOS\n' + castigos + '\n\nDENÚNCIAS\n' + lista);
+      });
+      return true;
+    }
+
+    systemNotice('Comando desconhecido. Digite /ajuda.');
+    return true;
+  }
+
+  /** aviso local, só para quem digitou — não vai para a sala */
+  function systemNotice(text) {
+    const node = document.createElement('div');
+    node.className = 'msg-system is-local';
+    node.textContent = text;
+    el.messages.appendChild(node);
+    scrollToEnd(false);
+  }
+
   el.composer.addEventListener('submit', (event) => {
     event.preventDefault();
     const text = el.messageInput.value.trim();
     if (!text || !state.currentRoom) return;
 
+    if (text.startsWith('/')) {
+      el.messageInput.value = '';
+      runCommand(text);
+      return;
+    }
+
     state.socket.emit('message', { text, replyTo: state.replyTo }, (res) => {
-      if (res && res.ok === false && res.error !== 'flood') toast('Mensagem não enviada.');
+      // 'flood', 'muted', 'blocked' e 'auto-mute' já chegam pelo evento 'warning'
+      if (res && res.ok === false && !res.error) toast('Mensagem não enviada.');
     });
 
     el.messageInput.value = '';
@@ -642,8 +798,22 @@
 
   // ------------------------------------------------------ socket
 
+  /** identidade local, para castigo de moderação não sumir com um F5 */
+  function deviceToken() {
+    try {
+      let token = localStorage.getItem('cm_token');
+      if (!token) {
+        token = (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2) + Date.now().toString(36));
+        localStorage.setItem('cm_token', token);
+      }
+      return token;
+    } catch (e) {
+      return String(Math.random()).slice(2) + Date.now().toString(36);
+    }
+  }
+
   function connect() {
-    const socket = io({ transports: ['websocket', 'polling'] });
+    const socket = io({ transports: ['websocket', 'polling'], auth: { token: deviceToken() } });
     state.socket = socket;
 
     socket.on('welcome', (data) => {
@@ -658,9 +828,48 @@
       refreshCounts();
     });
 
-    socket.on('message', (msg) => {
-      if (msg.roomId !== state.currentRoom) return;
-      appendMessage(msg);
+    // as mensagens chegam em lote: uma só em sala calma, várias em sala cheia
+    socket.on('messages', (list) => {
+      for (const msg of list) {
+        if (msg.roomId === state.currentRoom) appendMessage(msg);
+      }
+    });
+
+    socket.on('message-deleted', (data) => {
+      if (data.roomId !== state.currentRoom) return;
+      const node = el.messages.querySelector('[data-id="' + data.id + '"]');
+      if (node) node.remove();
+    });
+
+    socket.on('room-cleared', (data) => {
+      if (data.roomId !== state.currentRoom) return;
+      el.messages.innerHTML = '';
+      state.lastDay = null;
+    });
+
+    socket.on('muted', (data) => {
+      state.mutedUntil = data.until;
+      toast('Você foi silenciado. Motivo: ' + data.reason);
+      updateComposerLock();
+    });
+
+    socket.on('banned', (data) => {
+      state.banned = true;
+      showBlocked('Você foi banido', data.reason, data.until);
+    });
+
+    socket.on('kicked', (data) => {
+      showBlocked('Você foi expulso', data.reason, null);
+    });
+
+    socket.on('report', (report) => {
+      if (!state.isMod) return;
+      toast('🚨 Denúncia de ' + report.byNick + ' sobre ' + report.nick);
+    });
+
+    socket.on('auto-mute', (data) => {
+      if (!state.isMod) return;
+      toast('🤖 ' + data.nick + ' silenciado ' + data.minutes + 'min: ' + data.reason);
     });
 
     socket.on('members', (data) => {

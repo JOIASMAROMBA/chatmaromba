@@ -17,6 +17,8 @@ const DURATION_S = Number(process.argv[4] || 15);
 const ROOM = process.env.ROOM || 'tema:geral';
 
 const sockets = [];
+const roomSizes = {};
+let expectedDeliveries = 0;
 const latencies = [];
 let received = 0;
 let sent = 0;
@@ -42,15 +44,17 @@ function connectOne(index) {
     s.on('connect', () => {
       s.emit('login', { nick: 'Carga' + index }, (res) => {
         if (!res || !res.ok) { errors += 1; return finish(false); }
-        s.emit('join', { roomId: ROOM }, () => {
+        s.emit('join', { roomId: ROOM }, (res) => {
+          s.__room = res && res.room ? res.room.id : ROOM;
+          roomSizes[s.__room] = (roomSizes[s.__room] || 0) + 1;
           sockets.push(s);
           // mede a latência: o texto carrega o instante do envio
-          s.on('message', (m) => {
-            if (m.type !== 'chat') return;
+          s.on('messages', (list) => { for (const m of list) {
+            if (m.type !== 'chat') continue;
             received += 1;
             const at = Number(String(m.text).split('|')[1]);
             if (at) latencies.push(Date.now() - at);
-          });
+          } });
           finish(true);
         });
       });
@@ -88,6 +92,7 @@ function connectOne(index) {
       const s = sockets[Math.floor(Math.random() * sockets.length)];
       if (!s) return;
       sent += 1;
+      expectedDeliveries += roomSizes[s.__room] || 1;
       s.emit('message', { text: 'carga|' + Date.now() });
     }
   }, TICK_MS);
@@ -103,8 +108,9 @@ function connectOne(index) {
   console.log(`conexões vivas .......... ${sockets.length}`);
   console.log(`mensagens enviadas ...... ${sent}  (${(sent / elapsed).toFixed(1)}/s)`);
   console.log(`entregas recebidas ...... ${received}  (${(received / elapsed).toFixed(0)}/s)`);
-  console.log(`entregas esperadas ...... ~${sent * sockets.length}`);
-  console.log(`perda ................... ${(100 - (received / (sent * sockets.length)) * 100).toFixed(1)}%`);
+  console.log(`entregas esperadas ...... ~${expectedDeliveries}`);
+  console.log(`perda ................... ${(100 - (received / expectedDeliveries) * 100).toFixed(1)}%`);
+  console.log(`salas usadas ............ ${Object.keys(roomSizes).length} (teto de ${process.env.ROOM_CAPACITY || 250} por sala)`);
   console.log(`latência p50 ............ ${pct(latencies, 50)} ms`);
   console.log(`latência p95 ............ ${pct(latencies, 95)} ms`);
   console.log(`latência p99 ............ ${pct(latencies, 99)} ms`);

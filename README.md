@@ -74,6 +74,56 @@ npm test
 Sobe três clientes, entra em salas de tema/estado/cidade, troca mensagens e checa
 histórico, membros e anti-flood.
 
+## Moderação
+
+Ligue definindo `MOD_PASSWORD` no servidor. Sem essa variável, a moderação humana
+fica desligada (o filtro automático continua funcionando).
+
+No chat, digite os comandos no próprio campo de mensagem:
+
+| Comando | O que faz |
+|---|---|
+| `/mod <senha>` | entra como moderador |
+| `/mute <apelido> [min] [motivo]` | silencia (padrão 10 min) |
+| `/ban <apelido> [min] [motivo]` | bane e desconecta (padrão 60 min) |
+| `/kick <apelido> [motivo]` | expulsa, mas pode voltar |
+| `/liberar <apelido>` | tira o castigo |
+| `/limpar` | apaga o histórico da sala |
+| `/lista` | castigos e denúncias em aberto |
+| `/ajuda` | mostra tudo isso |
+
+Moderador também ganha 🗑 para apagar mensagem, e qualquer pessoa ganha 🚩 para denunciar.
+Denúncia chega ao vivo para quem estiver de plantão.
+
+**Como a punição identifica a pessoa:** por um token que o navegador guarda, **não** pelo IP.
+Operadoras móveis brasileiras usam CGNAT — milhares de pessoas dividem o mesmo IP, e banir
+por endereço calaria gente inocente. O banimento (só ele) também prende o IP como reforço,
+para não bastar limpar o navegador; `BAN_BY_IP=0` desliga esse reforço.
+
+### Filtro automático
+
+Funciona sem moderador acordado: silencia quem repete a mesma mensagem 3 vezes seguidas,
+silencia quem insiste em link (4 mensagens com link em 30s), barra mais de 2 links numa
+mensagem só, encolhe `aaaaaaaa` e abaixa o TEXTO TODO EM CAIXA ALTA em vez de bloquear.
+
+## Aguenta quanta gente?
+
+Medido com [test/load.js](test/load.js), 1000 conexões reais numa máquina comum:
+
+| Situação | Entregas/s | p95 | Perda |
+|---|---|---|---|
+| 1000 numa sala só, ~30 msg/s | 29.400 | 26 ms | 0% |
+| 1000 numa sala só, ~128 msg/s | 128.000 | **20.800 ms** | 0% |
+| 1000 divididos em 4 salas, ~95 msg/s | 23.900 | **104 ms** | 0% |
+
+A terceira linha é o comportamento atual. `ROOM_CAPACITY` (padrão 250) divide sala cheia em
+"Sala 2", "Sala 3"... Cada mensagem passa a alcançar 250 pessoas em vez de 1000, o que corta a
+banda — o maior custo de um chat — na mesma proporção, e ainda deixa o papo legível.
+
+```bash
+node test/load.js 1000 40 15    # 1000 clientes, 40 msg/s, 15 segundos
+```
+
 ## Deploy
 
 O projeto sobe em qualquer host que rode Node e aceite WebSocket. **Não funciona** em
@@ -103,6 +153,10 @@ docker run -p 3000:3000 -e ALLOWED_ORIGIN=https://seu-dominio.com chatmaromba
 |---|---|---|
 | `PORT` | `3000` | Porta HTTP (os hosts definem sozinhos) |
 | `ALLOWED_ORIGIN` | `*` | Domínios que podem abrir socket, separados por vírgula |
+| `MOD_PASSWORD` | — | Senha do `/mod`. Sem ela, não há moderador humano |
+| `ROOM_CAPACITY` | `250` | Pessoas por sala antes de abrir uma divisão nova |
+| `BAN_BY_IP` | `1` | `0` desliga o reforço de IP no banimento |
+| `IP_SALT` | sorteado | Fixe para os castigos sobreviverem a um restart |
 
 ## Antes de colocar no ar
 

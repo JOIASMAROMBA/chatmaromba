@@ -9,6 +9,9 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "22"
+      # Senha do moderador: gere uma no painel e guarde bem
+      - key: MOD_PASSWORD
+        generateValue: true
       # Depois do primeiro deploy, troque para a URL que o Render te der
       # (ex.: https://chatmaromba.onrender.com) e faça um novo deploy.
       # - key: ALLOWED_ORIGIN
