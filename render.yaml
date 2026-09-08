@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: chatmaromba
+    runtime: node
+    plan: free
+    buildCommand: npm ci --omit=dev
+    startCommand: node server.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # Depois do primeiro deploy, troque para a URL que o Render te der
+      # (ex.: https://chatmaromba.onrender.com) e faça um novo deploy.
+      # - key: ALLOWED_ORIGIN
+      #   value: https://chatmaromba.onrender.com

@@ -1,0 +1,22 @@
+{
+  "name": "chatmaromba",
+  "version": "1.0.0",
+  "description": "CHATMAROMBA - bate-papo fitness em tempo real, salas por tema e por estado/cidade",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node test/smoke.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "socket.io": "^4.8.1"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.3"
+  }
+}

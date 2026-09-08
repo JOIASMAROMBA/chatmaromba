@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#08080f" />
+<meta name="description" content="CHATMAROMBA — bate-papo da marombada. Salas por tema e por estado/cidade, em tempo real." />
+<title>CHATMAROMBA · bate-papo da marombada</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/css/style.css" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💪</text></svg>" />
+</head>
+<body>
+
+<div class="bg-fx" aria-hidden="true">
+  <span class="blob blob-1"></span>
+  <span class="blob blob-2"></span>
+  <span class="blob blob-3"></span>
+  <span class="grid"></span>
+</div>
+
+<!-- ============================ ENTRADA ============================ -->
+<section class="gate" id="gate">
+  <div class="gate-card">
+    <div class="brand brand-lg">
+      <span class="brand-mark">💪</span>
+      <div>
+        <h1 class="brand-name">CHAT<span>MAROMBA</span></h1>
+        <p class="brand-sub">o bate-papo da marombada · tempo real</p>
+      </div>
+    </div>
+
+    <form id="gate-form" autocomplete="off">
+      <label class="field">
+        <span class="field-label">Seu apelido</span>
+        <input id="nick-input" type="text" maxlength="18" placeholder="Ex: MonstroDoSupino"
+               autocomplete="off" spellcheck="false" required />
+        <span class="nick-status" id="nick-status" role="status">Ninguém online pode repetir seu apelido.</span>
+      </label>
+
+      <div class="field">
+        <span class="field-label">Escolha seu avatar</span>
+        <div class="avatar-grid" id="avatar-grid"></div>
+      </div>
+
+      <button class="btn-primary" type="submit">
+        Entrar no chat <span class="btn-arrow">→</span>
+      </button>
+      <p class="gate-note">Sem cadastro. Sem e-mail. É só entrar e trocar ideia.</p>
+    </form>
+
+    <ul class="gate-stats">
+      <li><strong id="gate-online">0</strong><span>online agora</span></li>
+      <li><strong id="gate-rooms">0</strong><span>salas</span></li>
+      <li><strong>27</strong><span>estados</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================ APP ============================ -->
+<div class="app" id="app" hidden>
+
+  <!-- ---------- barra lateral: salas ---------- -->
+  <aside class="sidebar" id="sidebar">
+    <header class="sidebar-head">
+      <div class="brand">
+        <span class="brand-mark sm">💪</span>
+        <h2 class="brand-name sm">CHAT<span>MAROMBA</span></h2>
+      </div>
+      <button class="icon-btn only-mobile" id="close-sidebar" aria-label="Fechar menu">✕</button>
+    </header>
+
+    <div class="search-box">
+      <span class="search-icon">🔎</span>
+      <input id="search-input" type="search" placeholder="Buscar sala, cidade, estado..." aria-label="Buscar sala" />
+    </div>
+
+    <nav class="tabs" role="tablist">
+      <button class="tab is-active" data-tab="temas" role="tab">🎯 Temas</button>
+      <button class="tab" data-tab="estados" role="tab">📍 Estados</button>
+    </nav>
+
+    <div class="room-scroll">
+      <div class="tab-panel is-active" id="panel-temas">
+        <p class="panel-hint">Salas nacionais, por assunto.</p>
+        <div class="room-list" id="theme-list"></div>
+      </div>
+
+      <div class="tab-panel" id="panel-estados">
+        <p class="panel-hint">Clique no estado para abrir as cidades. A sala <strong>Geral</strong> junta o estado inteiro.</p>
+        <div class="state-list" id="state-list"></div>
+      </div>
+    </div>
+
+    <footer class="sidebar-foot">
+      <div class="me-card" id="me-card">
+        <span class="me-avatar" id="me-avatar">💪</span>
+        <div class="me-info">
+          <strong id="me-nick">—</strong>
+          <span class="online-dot">online</span>
+        </div>
+        <button class="icon-btn" id="edit-me" title="Trocar apelido/avatar" aria-label="Trocar apelido">✏️</button>
+      </div>
+    </footer>
+  </aside>
+
+  <div class="scrim" id="scrim" hidden></div>
+
+  <!-- ---------- área do chat ---------- -->
+  <main class="chat">
+    <header class="chat-head">
+      <button class="icon-btn only-mobile" id="open-sidebar" aria-label="Abrir salas">☰</button>
+      <span class="room-icon" id="room-icon">🏠</span>
+      <div class="room-meta">
+        <h3 id="room-name">Escolha uma sala</h3>
+        <p id="room-tagline">176 salas esperando você</p>
+      </div>
+      <div class="head-actions">
+        <span class="pill" id="room-online">0 online</span>
+        <button class="icon-btn" id="toggle-members" title="Quem está aqui" aria-label="Quem está aqui">👥</button>
+      </div>
+    </header>
+
+    <div class="messages" id="messages">
+      <div class="empty-state" id="empty-state">
+        <span class="empty-icon">🏋️</span>
+        <h4>Escolha uma sala para começar</h4>
+        <p>Temas nacionais ou salas do seu estado e cidade. É só clicar no menu ao lado.</p>
+      </div>
+    </div>
+
+    <div class="typing-bar" id="typing-bar"></div>
+
+    <form class="composer" id="composer" autocomplete="off">
+      <div class="reply-preview" id="reply-preview" hidden>
+        <div>
+          <span class="reply-label">Respondendo <strong id="reply-nick"></strong></span>
+          <span class="reply-text" id="reply-text"></span>
+        </div>
+        <button type="button" class="icon-btn" id="cancel-reply" aria-label="Cancelar resposta">✕</button>
+      </div>
+
+      <div class="composer-row">
+        <button type="button" class="icon-btn emoji-btn" id="emoji-btn" aria-label="Emojis">😀</button>
+        <input id="message-input" type="text" maxlength="500" placeholder="Manda a braba..." disabled />
+        <button class="send-btn" id="send-btn" type="submit" disabled aria-label="Enviar">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path fill="currentColor" d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12.6 2-12.6 2z"/>
+          </svg>
+        </button>
+      </div>
+      <div class="emoji-pop" id="emoji-pop" hidden></div>
+    </form>
+  </main>
+
+  <!-- ---------- painel de membros ---------- -->
+  <aside class="members" id="members-panel">
+    <header class="members-head">
+      <h4>Na sala <span class="count" id="members-count">0</span></h4>
+      <button class="icon-btn" id="close-members" aria-label="Fechar">✕</button>
+    </header>
+    <div class="member-list" id="member-list"></div>
+    <p class="members-note">O papo é livre, mas respeite a galera. Nada de dado médico aqui é receita — procure um profissional.</p>
+  </aside>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/app.js"></script>
+</body>
+</html>
