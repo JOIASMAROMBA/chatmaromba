@@ -69,11 +69,22 @@ function wait(ms) {
   const msg = await gotMessage;
   check('mensagem entregue em tempo real', msg.text.includes('bora treinar') && msg.nick === 'Monstro');
 
-  const gotMembers = new Promise((resolve) => b.s.on('members', resolve));
-  const c = await client('Veterano');
-  await join(c.s, 'tema:venenos');
-  const members = await gotMembers;
-  check('lista de membros', members.members.length >= 2, 'n=' + members.members.length);
+  // quem entra recebe a lista completa; quem já estava recebe só o delta
+  const gotDelta = new Promise((resolve) => b.s.on('member-joined', resolve));
+  const cSock = await connect();
+  await login(cSock, 'Veterano');
+  const snapshot = await new Promise((resolve) => {
+    cSock.once('members', resolve);
+    cSock.emit('join', { roomId: 'tema:venenos' }, () => {});
+  });
+  const c = { s: cSock };
+  check('quem entra recebe a lista completa',
+    snapshot.members.length >= 2 && snapshot.total >= 2, 'n=' + snapshot.members.length);
+
+  const delta = await gotDelta;
+  check('quem já estava recebe só o delta',
+    delta.member && delta.member.nick === 'Veterano' && typeof delta.total === 'number',
+    'total=' + (delta && delta.total));
 
   const uf = await join(c.s, 'uf:SP');
   check('sala geral de estado', uf.ok && uf.room.name.includes('Geral'), uf.room && uf.room.name);

@@ -17,6 +17,9 @@ const MAX_NICK_LEN = 18;
 const MIN_NICK_LEN = 2;
 const RATE_WINDOW_MS = 10_000;
 const RATE_MAX_MSGS = 12;         // mensagens por janela
+const MEMBER_LIST_LIMIT = 80;     // nomes enviados na lista "quem está aqui"
+const BUSY_ROOM_SIZE = 40;        // acima disso, some o aviso de entrou/saiu
+const COUNTS_INTERVAL_MS = 1500;  // ritmo do broadcast de ocupação das salas
 
 const ROOMS = buildRooms();
 
@@ -61,7 +64,12 @@ app.get('/api/stats', (_req, res) => {
   res.json({ online: users.size, counts: roomCounts() });
 });
 
-app.get('/health', (_req, res) => res.json({ ok: true, uptime: process.uptime() }));
+app.get('/health', (_req, res) => res.json({
+  ok: true,
+  uptime: process.uptime(),
+  sockets: users.size,
+  memory: process.memoryUsage()
+}));
 
 // ---------------------------------------------------------------- helpers
 
@@ -126,6 +134,17 @@ function roomCounts() {
   return counts;
 }
 
+/** Quantas pessoas estão na sala, sem montar a lista toda */
+function roomSize(roomId) {
+  const room = io.sockets.adapter.rooms.get(roomId);
+  return room ? room.size : 0;
+}
+
+/**
+ * Lista de quem está na sala, cortada em MEMBER_LIST_LIMIT.
+ * Numa sala de mil pessoas ninguém rola a lista inteira, e mandar tudo
+ * para todo mundo a cada entrada custa caro demais.
+ */
 function roomMembers(roomId) {
   const members = [];
   for (const [id, user] of users) {
@@ -133,7 +152,8 @@ function roomMembers(roomId) {
       members.push({ id, nick: user.nick, avatar: user.avatar, color: user.color });
     }
   }
-  return members.sort((a, b) => a.nick.localeCompare(b.nick, 'pt-BR'));
+  members.sort((a, b) => a.nick.localeCompare(b.nick, 'pt-BR'));
+  return { members: members.slice(0, MEMBER_LIST_LIMIT), total: members.length };
 }
 
 function pushHistory(roomId, message) {
@@ -149,6 +169,15 @@ function systemMessage(roomId, text) {
   io.to(roomId).emit('message', message);
 }
 
+/**
+ * "Fulano entrou/saiu" só faz sentido em sala pequena. Numa sala cheia vira
+ * spam ilegível — e um broadcast para todo mundo a cada porta que abre.
+ */
+function announceComingAndGoing(roomId, text) {
+  if (roomSize(roomId) > BUSY_ROOM_SIZE) return;
+  systemMessage(roomId, text);
+}
+
 let seq = 0;
 function newId() {
   seq += 1;
@@ -162,11 +191,21 @@ function scheduleCounts() {
   countsTimer = setTimeout(() => {
     countsTimer = null;
     io.emit('counts', { online: users.size, counts: roomCounts() });
-  }, 400);
+  }, COUNTS_INTERVAL_MS);
 }
 
-function emitMembers(roomId) {
-  io.to(roomId).emit('members', { roomId, members: roomMembers(roomId) });
+/** Foto completa da sala — só para quem acabou de entrar */
+function sendMemberSnapshot(socket, roomId) {
+  const { members, total } = roomMembers(roomId);
+  socket.emit('members', { roomId, members, total });
+}
+
+/**
+ * Para os que já estavam na sala, manda só o que mudou (uma pessoa entrou ou saiu).
+ * É o que segura sala grande: custo por entrada vira O(n) de rede, não O(n²) de dados.
+ */
+function broadcastMemberDelta(socket, roomId, event, payload) {
+  socket.to(roomId).emit(event, Object.assign({ roomId, total: roomSize(roomId) }, payload));
 }
 
 /** true se o usuário estourou o limite de mensagens da janela */
@@ -183,8 +222,8 @@ function leaveCurrentRoom(socket, user, { notify = true } = {}) {
   if (!previous) return;
   socket.leave(previous);
   user.roomId = null;
-  if (notify) systemMessage(previous, `${user.nick} saiu da sala`);
-  emitMembers(previous);
+  if (notify) announceComingAndGoing(previous, `${user.nick} saiu da sala`);
+  broadcastMemberDelta(socket, previous, 'member-left', { id: socket.id });
 }
 
 // ---------------------------------------------------------------- socket.io
@@ -243,7 +282,9 @@ io.on('connection', (socket) => {
     // trocou de nome no meio do papo: avisa a sala e atualiza a lista
     if (previousNick && previousNick !== user.nick && user.roomId) {
       systemMessage(user.roomId, `${previousNick} agora é ${user.nick}`);
-      emitMembers(user.roomId);
+      broadcastMemberDelta(socket, user.roomId, 'member-joined', {
+        member: { id: socket.id, nick: user.nick, avatar: user.avatar, color: user.color }
+      });
     }
   });
 
@@ -270,8 +311,11 @@ io.on('connection', (socket) => {
     if (typeof ack === 'function') {
       ack({ ok: true, room, history: history.get(roomId) || [] });
     }
-    systemMessage(roomId, `${user.nick} entrou na sala`);
-    emitMembers(roomId);
+    announceComingAndGoing(roomId, `${user.nick} entrou na sala`);
+    sendMemberSnapshot(socket, roomId);
+    broadcastMemberDelta(socket, roomId, 'member-joined', {
+      member: { id: socket.id, nick: user.nick, avatar: user.avatar, color: user.color }
+    });
     scheduleCounts();
   });
 
@@ -325,11 +369,11 @@ io.on('connection', (socket) => {
     const previous = user.roomId;
     if (previous) {
       user.roomId = null;
-      systemMessage(previous, `${user.nick} saiu da sala`);
+      announceComingAndGoing(previous, `${user.nick} saiu da sala`);
     }
     releaseNick(user, socket.id);   // o apelido volta a ficar livre
     users.delete(socket.id);
-    if (previous) emitMembers(previous);
+    if (previous) broadcastMemberDelta(socket, previous, 'member-left', { id: socket.id });
     scheduleCounts();
   });
 });

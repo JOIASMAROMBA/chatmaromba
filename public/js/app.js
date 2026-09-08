@@ -74,6 +74,8 @@
     currentRoom: null,
     counts: {},
     replyTo: null,
+    members: [],
+    membersTotal: 0,
     typingUsers: new Map(),
     typingSent: false,
     typingTimer: null,
@@ -378,6 +380,7 @@
 
       state.currentRoom = res.room.id;
       state.typingUsers.clear();
+      state.members = [];
       renderTyping();
       clearReply();
 
@@ -571,8 +574,17 @@
 
   // ------------------------------------------------------ membros
 
-  function renderMembers(members) {
-    el.membersCount.textContent = members.length;
+  /**
+   * O servidor manda a lista completa só quando você entra; depois vêm apenas
+   * os deltas (fulano entrou / fulano saiu). Em sala grande a lista vem cortada,
+   * então `total` é quem manda no contador.
+   */
+  function renderMembers(members, total) {
+    state.members = members;
+    state.membersTotal = typeof total === 'number' ? total : members.length;
+    el.membersCount.textContent = state.membersTotal;
+
+    const hidden = state.membersTotal - members.length;
     el.memberList.innerHTML = members
       .map((m) => {
         const you = state.me && m.id === state.me.id ? '<span class="tag-you">você</span>' : '';
@@ -584,7 +596,19 @@
           '</div>'
         );
       })
-      .join('');
+      .join('') + (hidden > 0 ? '<p class="member-more">+ ' + hidden + ' pessoas nesta sala</p>' : '');
+  }
+
+  /** aplica um delta na lista local sem pedir tudo de novo ao servidor */
+  function applyMemberDelta(data, joined) {
+    if (data.roomId !== state.currentRoom) return;
+    let list = state.members.filter((m) => m.id !== (joined ? data.member.id : data.id));
+    if (joined) {
+      list.push(data.member);
+      list.sort((a, b) => a.nick.localeCompare(b.nick, 'pt-BR'));
+      if (list.length > 80) list = list.slice(0, 80);   // mesmo corte do servidor
+    }
+    renderMembers(list, data.total);
   }
 
   el.toggleMembers.addEventListener('click', () => el.app.classList.toggle('show-members'));
@@ -641,8 +665,11 @@
 
     socket.on('members', (data) => {
       if (data.roomId !== state.currentRoom) return;
-      renderMembers(data.members);
+      renderMembers(data.members, data.total);
     });
+
+    socket.on('member-joined', (data) => applyMemberDelta(data, true));
+    socket.on('member-left', (data) => applyMemberDelta(data, false));
 
     socket.on('typing', (data) => {
       if (data.typing) state.typingUsers.set(data.id, data.nick);
