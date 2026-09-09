@@ -15,6 +15,7 @@ const guard = require('./shared/guard');
 const photos = require('./shared/photos');
 const terms = require('./shared/terms');
 const profile = require('./shared/profile');
+const trending = require('./shared/trending');
 
 const PORT = process.env.PORT || 3000;
 const HISTORY_SIZE = 80;          // mensagens guardadas por sala
@@ -148,6 +149,10 @@ app.get('/api/rooms', (_req, res) => {
 
 app.get('/api/terms', (_req, res) => {
   res.json({ versao: terms.VERSAO, intro: terms.INTRO, secoes: terms.SECOES, idade: terms.IDADE });
+});
+
+app.get('/api/trending', (_req, res) => {
+  res.json({ assuntos: montarAssuntos(), janelaMin: trending.JANELA_MIN });
 });
 
 app.get('/api/stats', (_req, res) => {
@@ -403,6 +408,40 @@ function scheduleCounts() {
   }, COUNTS_INTERVAL_MS);
 }
 
+/**
+ * Assuntos do momento, com nome e ícone da sala já resolvidos para o
+ * cliente não precisar cruzar nada. Só sai quando muda de verdade: mandar
+ * a mesma lista a cada poucos segundos para todo mundo é banda jogada fora.
+ */
+let ultimoRanking = '';
+
+function montarAssuntos() {
+  return trending.ranking(5)
+    .map((item) => {
+      const sala = ROOMS.get(item.sala);
+      if (!sala) return null;
+      return {
+        termo: item.termo,
+        pessoas: item.pessoas,
+        total: item.total,
+        salaId: sala.id,
+        salaNome: sala.name,
+        salaIcone: sala.icon
+      };
+    })
+    .filter(Boolean);
+}
+
+function transmitirAssuntos() {
+  const lista = montarAssuntos();
+  const assinatura = JSON.stringify(lista);
+  if (assinatura === ultimoRanking) return;
+  ultimoRanking = assinatura;
+  io.emit('trending', lista);
+}
+
+setInterval(transmitirAssuntos, 8000).unref();
+
 /** Foto completa da sala — só para quem acabou de entrar */
 function sendMemberSnapshot(socket, roomId) {
   const { members, total } = roomMembers(roomId);
@@ -519,6 +558,7 @@ io.on('connection', (socket) => {
     return false;
   };
 
+  socket.emit('trending', montarAssuntos());
   socket.emit('welcome', {
     id: socket.id,
     avatars: AVATARS,
@@ -780,6 +820,9 @@ io.on('connection', (socket) => {
     };
 
     deliver(user.roomId, message);
+    // o assunto pertence ao tema, não à divisão: senão o mesmo papo
+    // apareceria fatiado entre Sala 1, 2 e 3
+    trending.registrar(text, baseRoomId(user.roomId), socket.id);
     reply({ ok: true, id: message.id });
   });
 

@@ -891,6 +891,100 @@ button, input { font: inherit; color: inherit; }
 
 .no-result { padding: 24px 12px; text-align: center; font-size: 13px; color: var(--txt-faint); }
 
+/* ---- assuntos do momento ---- */
+
+.trend-box {
+  margin: 18px 4px 4px;
+  padding: 14px 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.028);
+}
+
+.trend-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--txt-dim);
+}
+
+.trend-pulse {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--lime);
+  box-shadow: 0 0 8px var(--lime);
+  animation: pulse 2s infinite;
+  flex: 0 0 auto;
+}
+
+.trend-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
+
+.trend-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.15s;
+}
+.trend-item:hover { background: rgba(255, 255, 255, 0.06); transform: translateX(2px); }
+
+.trend-pos {
+  flex: 0 0 18px;
+  font-family: 'Sora', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--violet);
+  text-align: center;
+}
+
+.trend-body { flex: 1; min-width: 0; line-height: 1.3; }
+.trend-termo {
+  display: block;
+  font-size: 13.2px;
+  font-weight: 600;
+  color: #e8e8f2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.trend-sala {
+  display: block;
+  font-size: 10.8px;
+  color: var(--txt-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trend-gente {
+  flex: 0 0 auto;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  background: rgba(124, 92, 255, 0.18);
+  color: #c3b2ff;
+}
+
+.trend-empty {
+  margin: 0;
+  font-size: 11.2px;
+  line-height: 1.5;
+  color: var(--txt-faint);
+}
+.trend-empty[hidden] { display: none; }
+
 /* rodapé da lateral */
 
 .sidebar-foot { padding: 10px 12px 14px; border-top: 1px solid var(--line); }

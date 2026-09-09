@@ -50,7 +50,7 @@ function wait(ms) {
     'versão ' + regras.versao + ', ' + regras.secoes.length + ' seções');
 
   const rooms = await fetch(URL + '/api/rooms').then((r) => r.json());
-  check('GET /api/rooms', rooms.themes.length === 14 && rooms.states.length === 27,
+  check('GET /api/rooms', rooms.themes.length === 6 && rooms.states.length === 27,
     'temas=' + rooms.themes.length + ' estados=' + rooms.states.length);
 
   const html = await fetch(URL + '/').then((r) => r.text());
@@ -356,6 +356,43 @@ function wait(ms) {
   curioso.s.close();
   xerifePerfil.s.close();
 
+  // ---------------------------------------------------------------- assuntos do momento
+  const falante1 = await client('FalanteUm');
+  const falante2 = await client('FalanteDois');
+  await join(falante1.s, 'tema:treinodieta');
+  await join(falante2.s, 'tema:treinodieta');
+
+  const palavra = 'creatinateste' + Math.floor(Math.random() * 100000);
+  const soDeUm = 'sozinhoteste' + Math.floor(Math.random() * 100000);
+
+  // duas pessoas falando o mesmo assunto: vale
+  await new Promise((r) => falante1.s.emit('message', { text: 'tomo ' + palavra + ' todo dia' }, r));
+  await new Promise((r) => falante2.s.emit('message', { text: 'comprei ' + palavra + ' ontem' }, r));
+  // uma pessoa só, repetindo: não pode pautar o chat sozinha
+  for (let i = 0; i < 4; i += 1) {
+    await new Promise((r) => falante1.s.emit('message', { text: soDeUm + ' demais ' + i }, r));
+  }
+  await wait(400);
+
+  const trend = await fetch(URL + '/api/trending').then((r) => r.json());
+  const achou = trend.assuntos.find((a) => a.termo === palavra);
+  check('assunto falado por duas pessoas entra no ranking',
+    Boolean(achou), achou ? achou.termo + ' em ' + achou.salaNome : 'não entrou');
+  check('o ranking aponta a sala certa',
+    Boolean(achou) && achou.salaId === 'tema:treinodieta', achou && achou.salaId);
+  check('uma pessoa sozinha não pauta o chat',
+    !trend.assuntos.some((a) => a.termo === soDeUm),
+    'termos: ' + trend.assuntos.map((a) => a.termo).join(', '));
+
+  const chegouAoVivo = await new Promise((resolve) => {
+    falante2.s.once('trending', resolve);
+    setTimeout(() => resolve(null), 12000);
+  });
+  check('ranking chega ao vivo pelo socket', Array.isArray(chegouAoVivo));
+
+  falante1.s.close();
+  falante2.s.close();
+
   // ---------------------------------------------------------------- anti-flood
   let flooded = false;
   a.s.on('warning', () => { flooded = true; });
@@ -414,7 +451,7 @@ function wait(ms) {
 
   // ---------------------------------------------------------------- filtro automático
   const spammer = await client('Spammer');
-  await join(spammer.s, 'tema:zoeira');
+  await join(spammer.s, 'tema:treinodieta');
   let autoMuted = null;
   for (let i = 0; i < 5; i += 1) {
     const r = await new Promise((r2) => spammer.s.emit('message', { text: 'COMPRA AQUI AMIGO' }, r2));
@@ -423,7 +460,7 @@ function wait(ms) {
   check('filtro silencia mensagem repetida', Boolean(autoMuted));
 
   const linkSpammer = await client('LinkSpam');
-  await join(linkSpammer.s, 'tema:zoeira');
+  await join(linkSpammer.s, 'tema:treinodieta');
   const muitoLink = await new Promise((r) =>
     linkSpammer.s.emit('message', { text: 'http://a.com http://b.com http://c.com' }, r));
   check('filtro barra muro de links', muitoLink.ok === false && muitoLink.error === 'blocked');

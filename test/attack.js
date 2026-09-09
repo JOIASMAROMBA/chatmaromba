@@ -108,7 +108,7 @@ const skip = (name, motivo) => {
   {
     const s = track(await connect());
     await emit(s, 'login', { nick: 'SondaGigante', terms: TERMS });
-    await emit(s, 'join', { roomId: 'tema:zoeira' });
+    await emit(s, 'join', { roomId: 'tema:treinodieta' });
     const gigante = 'A'.repeat(900 * 1024);
     let derrubado = false;
     s.on('disconnect', () => { derrubado = true; });
@@ -125,11 +125,11 @@ const skip = (name, motivo) => {
   {
     const s = track(await connect());
     await emit(s, 'login', { nick: 'SondaDigitando', terms: TERMS });
-    await emit(s, 'join', { roomId: 'tema:zoeira' });
+    await emit(s, 'join', { roomId: 'tema:treinodieta' });
 
     const espiao = track(await connect());
     await emit(espiao, 'login', { nick: 'SondaEspiao', terms: TERMS });
-    const entrou = await emit(espiao, 'join', { roomId: 'tema:zoeira' });
+    const entrou = await emit(espiao, 'join', { roomId: 'tema:treinodieta' });
     if (!entrou || !entrou.ok) throw new Error('o espião não entrou na sala: teste inválido');
 
     let recebidos = 0;
@@ -146,7 +146,7 @@ const skip = (name, motivo) => {
     await emit(s, 'login', { nick: 'SondaPulo', terms: TERMS });
     let recusas = 0;
     for (let i = 0; i < 80; i += 1) {
-      const res = await emit(s, 'join', { roomId: i % 2 ? 'tema:treta' : 'tema:zoeira' });
+      const res = await emit(s, 'join', { roomId: i % 2 ? 'tema:treta' : 'tema:treinodieta' });
       if (res && res.ok === false) recusas += 1;
     }
     check('troca de sala em looping', recusas > 0, recusas + ' de 80 recusadas');

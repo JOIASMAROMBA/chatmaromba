@@ -13,7 +13,7 @@ Porta customizada: `PORT=8080 npm start`.
 
 ## Salas
 
-**176 salas** no total, em três tipos:
+**168 salas** no total, em três tipos:
 
 | Tipo | Id | Exemplo |
 |---|---|---|
@@ -21,9 +21,7 @@ Porta customizada: `PORT=8080 npm start`.
 | Estado — geral | `uf:<UF>` | `uf:SP` |
 | Cidade | `cidade:<UF>:<slug>` | `cidade:SP:santos` |
 
-Temas: 🏠 Geral · 🔥 Emagrecimento · 💪 Ganho de Peso · 💊 Venenos · ⚔️ Treta · 💘 Paquera ·
-🍗 Dieta & Receitas · 🏋️ Treino & Fichas · 🥤 Suplementos · 🌱 Natural · 🏆 Competição ·
-🩺 Lesões & Saúde · 🧠 Motivação · 😂 Zoeira
+Temas: 🏠 Geral · ⚔️ Treta · 💊 Venenos · 💘 Paquera · 🌱 Naturais · 🏋️ Treino e Dieta
 
 Estados: os 27 (26 + DF), cada um com uma sala **Geral** que junta o estado inteiro, mais as
 principais cidades. Para incluir mais cidades, é só adicionar na lista em
@@ -42,6 +40,7 @@ principais cidades. Para incluir mais cidades, é só adicionar na lista em
 |---|---|
 | `GET /api/rooms` | temas e estados/cidades |
 | `GET /api/terms` | regras de uso e versão vigente |
+| `GET /api/trending` | top 5 dos assuntos do momento |
 | `GET /api/stats` | total online e ocupação por sala |
 | `POST /api/avatar` | envia a foto de perfil (JPEG cru, cabeçalho `X-Device-Token`) |
 | `GET /avatar/:id` | entrega a foto |
@@ -64,6 +63,9 @@ principais cidades. Para incluir mais cidades, é só adicionar na lista em
 - **Cartão de visita**: clicar na foto de alguém abre cidade, idade, uma frase e o Instagram.
   Campo em branco simplesmente não aparece — quem não preencheu nada continua sendo só foto e
   apelido. O link do Instagram passa por conferência de domínio de verdade, não por `includes`
+- **Assuntos do momento**: top 5 do que está sendo falado agora, com a sala onde cada assunto
+  está mais quente e um clique para entrar. Uma palavra só entra se **gente diferente** estiver
+  falando dela — senão uma pessoa repetindo a mesma coisa pautaria o site inteiro
 - Contador de gente online por sala, ao vivo
 - Busca por tema, estado ou cidade
 - Responder mensagem, indicador de "digitando", seletor de emoji

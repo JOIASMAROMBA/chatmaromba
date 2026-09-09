@@ -3,21 +3,18 @@
  * Usado pelo servidor e enviado ao cliente via GET /api/rooms.
  */
 
+/**
+ * Poucas salas, cheias, valem mais que muitas salas vazias: numa lista
+ * longa a pessoa entra numa sala com zero pessoas e vai embora achando
+ * que o chat é morto.
+ */
 const THEMES = [
-  { id: 'geral',         name: 'Geral',            icon: '🏠', color: '#7c5cff', tagline: 'Papo livre da marombada' },
-  { id: 'emagrecimento', name: 'Emagrecimento',    icon: '🔥', color: '#ff5f6d', tagline: 'Cutting, déficit e cardio' },
-  { id: 'ganho',         name: 'Ganho de Peso',    icon: '💪', color: '#00d4ff', tagline: 'Bulking, hipertrofia e força' },
-  { id: 'venenos',       name: 'Venenos',          icon: '💊', color: '#c026d3', tagline: 'Papo de ciclo, TPC e afins' },
-  { id: 'treta',         name: 'Treta',            icon: '⚔️', color: '#ff9f1c', tagline: 'Barraco liberado, sem chorar' },
-  { id: 'paquera',       name: 'Paquera',          icon: '💘', color: '#ff4d94', tagline: 'A sala do date pós-treino' },
-  { id: 'dieta',         name: 'Dieta & Receitas', icon: '🍗', color: '#22c55e', tagline: 'Macros, marmita e receita fit' },
-  { id: 'treino',        name: 'Treino & Fichas',  icon: '🏋️', color: '#38bdf8', tagline: 'ABC, PPL, full body' },
-  { id: 'suplementos',   name: 'Suplementos',      icon: '🥤', color: '#facc15', tagline: 'Whey, creatina e pré-treino' },
-  { id: 'natural',       name: 'Natural',          icon: '🌱', color: '#4ade80', tagline: 'Só comida e treino, sem nada' },
-  { id: 'competicao',    name: 'Competição',       icon: '🏆', color: '#f97316', tagline: 'Palco, peak week e posing' },
-  { id: 'lesao',         name: 'Lesões & Saúde',   icon: '🩺', color: '#60a5fa', tagline: 'Dor, exame e recuperação' },
-  { id: 'motivacao',     name: 'Motivação',        icon: '🧠', color: '#a78bfa', tagline: 'Foco, disciplina e mente' },
-  { id: 'zoeira',        name: 'Zoeira',           icon: '😂', color: '#fbbf24', tagline: 'Meme, print e resenha' }
+  { id: 'geral',       name: 'Geral',           icon: '🏠', color: '#7c5cff', tagline: 'Papo livre da marombada' },
+  { id: 'treta',       name: 'Treta',           icon: '⚔️', color: '#ff9f1c', tagline: 'Barraco liberado, sem chorar' },
+  { id: 'venenos',     name: 'Venenos',         icon: '💊', color: '#c026d3', tagline: 'Papo de ciclo, TPC e afins' },
+  { id: 'paquera',     name: 'Paquera',         icon: '💘', color: '#ff4d94', tagline: 'A sala do date pós-treino' },
+  { id: 'natural',     name: 'Naturais',        icon: '🌱', color: '#4ade80', tagline: 'Só comida e treino, sem nada' },
+  { id: 'treinodieta', name: 'Treino e Dieta',  icon: '🏋️', color: '#38bdf8', tagline: 'Ficha, macros, marmita e suplemento' }
 ];
 
 const STATES = [

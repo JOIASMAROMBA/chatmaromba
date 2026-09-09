@@ -56,6 +56,8 @@
 
     searchInput: $('#search-input'),
     themeList: $('#theme-list'),
+    trendList: $('#trend-list'),
+    trendEmpty: $('#trend-empty'),
     stateList: $('#state-list'),
 
     meAvatar: $('#me-avatar'),
@@ -906,6 +908,30 @@
     });
   });
 
+  // ------------------------------------------------------ assuntos do momento
+
+  /**
+   * Top 5 do que está sendo falado agora, com a sala onde o assunto está
+   * mais quente. Clicar leva direto para lá.
+   */
+  function renderAssuntos(lista) {
+    const temAlgo = Array.isArray(lista) && lista.length > 0;
+    el.trendEmpty.hidden = temAlgo;
+
+    if (!temAlgo) { el.trendList.innerHTML = ''; return; }
+
+    el.trendList.innerHTML = lista.map((item, i) => (
+      '<li><button class=trend-item data-room= + escapeHtml(item.salaId) + >'
+      + '<span class=trend-pos>' + (i + 1) + '</span>'
+      + '<span class=trend-body>'
+      +   '<span class=trend-termo>' + escapeHtml(item.termo) + '</span>'
+      +   '<span class=trend-sala>' + item.salaIcone + ' ' + escapeHtml(item.salaNome) + '</span>'
+      + '</span>'
+      + '<span class=trend-gente>' + item.pessoas + '</span>'
+      + '</button></li>'
+    )).join('');
+  }
+
   // ------------------------------------------------------ salas
 
   function joinRoom(roomId) {
@@ -1347,6 +1373,8 @@
       if (!el.avatarGrid.children.length) renderAvatarPicker();
       comecarDoZero();
     });
+
+    socket.on('trending', renderAssuntos);
 
     socket.on('counts', (data) => {
       state.counts = data.counts || {};
