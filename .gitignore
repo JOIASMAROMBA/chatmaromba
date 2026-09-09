@@ -2,3 +2,5 @@ node_modules/
 npm-debug.log*
 .env
 .DS_Store
+TOKEN-FLY-COLAR-NO-GITHUB.txt
+*.token
