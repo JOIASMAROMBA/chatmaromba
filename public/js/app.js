@@ -248,40 +248,66 @@
    *
    * O corte é quadrado e centralizado, que é como um retrato redondo espera.
    */
-  function encolherFoto(file) {
-    return new Promise((resolve, reject) => {
-      if (!file.type.startsWith('image/')) return reject(new Error('Isso não é uma imagem.'));
-      if (file.size > 12 * 1024 * 1024) return reject(new Error('Imagem grande demais (máx. 12 MB).'));
+  /** desenha a imagem já cortada em quadrado e devolve o JPEG comprimido */
+  function recortarQuadrado(fonte, largura, altura) {
+    const lado = Math.min(largura, altura);
+    const sx = (largura - lado) / 2;
+    const sy = (altura - lado) / 2;
 
+    const canvas = document.createElement('canvas');
+    canvas.width = PHOTO_SIZE;
+    canvas.height = PHOTO_SIZE;
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(fonte, sx, sy, lado, lado, 0, 0, PHOTO_SIZE, PHOTO_SIZE);
+
+    return new Promise((resolve, reject) => {
+      canvas.toBlob(
+        (blob) => (blob ? resolve(blob) : reject(new Error('Não consegui processar a imagem.'))),
+        'image/jpeg',
+        PHOTO_QUALITY
+      );
+    });
+  }
+
+  /** caminho antigo: abre a foto por uma URL temporária blob: */
+  function lerComImagem(file) {
+    return new Promise((resolve, reject) => {
       const url = URL.createObjectURL(file);
       const img = new Image();
-
       img.onload = () => {
         URL.revokeObjectURL(url);
-        const lado = Math.min(img.width, img.height);
-        const sx = (img.width - lado) / 2;
-        const sy = (img.height - lado) / 2;
-
-        const canvas = document.createElement('canvas');
-        canvas.width = PHOTO_SIZE;
-        canvas.height = PHOTO_SIZE;
-        const ctx = canvas.getContext('2d');
-        ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(img, sx, sy, lado, lado, 0, 0, PHOTO_SIZE, PHOTO_SIZE);
-
-        canvas.toBlob(
-          (blob) => (blob ? resolve(blob) : reject(new Error('Não consegui processar a imagem.'))),
-          'image/jpeg',
-          PHOTO_QUALITY
-        );
+        recortarQuadrado(img, img.width, img.height).then(resolve, reject);
       };
-
       img.onerror = () => {
         URL.revokeObjectURL(url);
-        reject(new Error('Não consegui abrir essa imagem.'));
+        reject(new Error('Não consegui abrir essa imagem. Tenta salvar como JPG e enviar de novo.'));
       };
       img.src = url;
     });
+  }
+
+  async function encolherFoto(file) {
+    if (!file.type.startsWith('image/')) throw new Error('Isso não é uma imagem.');
+    if (file.size > 25 * 1024 * 1024) throw new Error('Imagem grande demais (máx. 25 MB).');
+
+    /**
+     * createImageBitmap decodifica o arquivo direto, sem precisar criar uma
+     * URL blob: para o navegador carregar. Além de ser mais rápido, não
+     * depende da política de conteúdo permitir blob: — e foi exatamente
+     * isso que quebrou o envio de foto na primeira versão.
+     */
+    if (typeof createImageBitmap === 'function') {
+      try {
+        const bitmap = await createImageBitmap(file);
+        const blob = await recortarQuadrado(bitmap, bitmap.width, bitmap.height);
+        if (bitmap.close) bitmap.close();
+        return blob;
+      } catch (e) {
+        // formato que o createImageBitmap não decodifica: tenta do jeito antigo
+      }
+    }
+    return lerComImagem(file);
   }
 
   /** Sobe a foto já encolhida e devolve o id que o servidor deu */

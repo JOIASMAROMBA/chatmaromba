@@ -200,6 +200,17 @@ function wait(ms) {
     body: corpo
   });
 
+  /**
+   * A política de conteúdo precisa permitir blob: em img-src, senão o
+   * navegador nem consegue abrir a foto que a pessoa escolheu para cortar.
+   * Este teste existe porque essa exata combinação já quebrou o envio de
+   * foto em produção: o recurso estava certo, a configuração é que barrava.
+   */
+  const politica = (await fetch(URL + '/')).headers.get('content-security-policy') || '';
+  const imgSrc = (politica.split(';').find((p) => p.trim().startsWith('img-src')) || '').trim();
+  check('política permite o navegador abrir a foto escolhida',
+    imgSrc.includes('blob:'), imgSrc || 'sem img-src');
+
   const envio = await subir(jpegFalso);
   const envioJson = await envio.json().catch(() => ({}));
   check('envio de foto aceito', envio.ok && envioJson.ok && envioJson.id, 'id=' + envioJson.id);

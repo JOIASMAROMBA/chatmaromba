@@ -90,7 +90,10 @@ const CSP = [
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com",
-  "img-src 'self' data:",
+  // blob: é obrigatório aqui: é assim que o navegador abre a foto que a
+  // pessoa acabou de escolher, antes de cortar e enviar. Sem isso, a
+  // própria trava de segurança impede alguém de colocar foto de perfil.
+  "img-src 'self' data: blob:",
   "connect-src 'self' ws: wss:",
   "form-action 'self'",
   "base-uri 'self'",
