@@ -99,6 +99,30 @@ function wait(ms) {
     semAspas.length === 0,
     semAspas.length ? 'linha ' + semAspas[0].n + ': ' + semAspas[0].linha.slice(0, 70) : 'ok');
 
+  /**
+   * Nenhum campo de digitação pode ter fonte menor que 16px.
+   *
+   * Abaixo disso o Safari do iPhone dá zoom ao tocar no campo, e o que
+   * estava na borda da tela — o botão de enviar — some da área visível.
+   * Parece "a tela desconfigurou ao começar a escrever", e não é: é zoom.
+   */
+  const folha = await fetch(URL + '/css/style.css').then((r) => r.text());
+  const camposPequenos = [...folha.matchAll(/([^{}]+)\{([^}]*)\}/g)]
+    .filter(([, seletor, corpo]) => {
+      if (!/input|textarea|select/.test(seletor)) return false;
+      const tamanho = corpo.match(/font-size:\s*([\d.]+)px/);
+      return tamanho && Number(tamanho[1]) < 16;
+    })
+    .map(([, seletor]) => seletor.trim().replace(/\s+/g, ' '));
+  check('campos de digitação com 16px ou mais (sem zoom no iPhone)',
+    camposPequenos.length === 0,
+    camposPequenos.length ? camposPequenos.join(' | ') : 'ok');
+
+  /** o teclado do celular precisa redimensionar a página, não cobri-la */
+  check('viewport preparado para o teclado do celular',
+    /interactive-widget=resizes-content/.test(paginaHtml),
+    /viewport/.test(paginaHtml) ? 'presente' : 'sem meta viewport');
+
   /** o top 5 precisa levar para a sala — sem isso ele é só enfeite */
   check('itens do ranking carregam a sala de destino',
     /data-room="'\s*\+\s*escapeHtml\(item\.salaId\)/.test(script),

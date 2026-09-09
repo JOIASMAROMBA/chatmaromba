@@ -30,6 +30,8 @@
 
 html, body {
   height: 100%;
+  /* dvh acompanha o teclado do celular; 100% fica de reserva onde não houver */
+  height: 100dvh;
   margin: 0;
 }
 
@@ -40,7 +42,29 @@ body {
   font-size: 15px;
   line-height: 1.5;
   overflow: hidden;
+  overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
+  /* impede o Safari de reescalar o texto sozinho ao girar a tela */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/**
+ * 16px em todo campo de digitação, sem exceção.
+ *
+ * Abaixo disso o Safari do iPhone dá zoom automático ao tocar no campo.
+ * A tela não "desconfigura": ela é ampliada, e o que estava na borda —
+ * o botão de enviar — sai da área visível. É a causa mais comum de
+ * "quebrou tudo quando comecei a escrever" no iPhone, e a única correção
+ * confiável é não descer de 16px.
+ */
+input[type="text"],
+input[type="search"],
+input[type="number"],
+input[type="file"],
+textarea,
+select {
+  font-size: 16px;
 }
 
 h1, h2, h3, h4 { font-family: 'Sora', 'Inter', sans-serif; margin: 0; letter-spacing: -0.02em; }
@@ -481,7 +505,7 @@ button, input { font: inherit; color: inherit; }
   border: 1px solid var(--line-strong);
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.04);
-  font-size: 14px;
+  font-size: 16px;   /* abaixo disso o iPhone dá zoom ao tocar */
   outline: none;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
@@ -690,6 +714,9 @@ button, input { font: inherit; color: inherit; }
   display: grid;
   grid-template-columns: var(--sidebar-w) minmax(0, 1fr) 0px;
   height: 100%;
+  height: 100dvh;
+  max-width: 100vw;
+  overflow: hidden;
   transition: grid-template-columns 0.25s ease;
 }
 .app.show-members { grid-template-columns: var(--sidebar-w) minmax(0, 1fr) var(--members-w); }
@@ -722,7 +749,7 @@ button, input { font: inherit; color: inherit; }
   border: 1px solid var(--line);
   border-radius: 11px;
   background: rgba(255, 255, 255, 0.04);
-  font-size: 13.5px;
+  font-size: 16px;   /* abaixo disso o iPhone dá zoom ao tocar */
   outline: none;
   transition: border-color 0.2s, background 0.2s;
 }
@@ -1055,7 +1082,7 @@ button, input { font: inherit; color: inherit; }
 
 /* ---------------------------------------------- chat */
 
-.chat { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.chat { display: flex; flex-direction: column; min-width: 0; min-height: 0; max-width: 100%; overflow: hidden; }
 
 .chat-head {
   display: flex;
@@ -1087,6 +1114,7 @@ button, input { font: inherit; color: inherit; }
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 20px 20px 8px;
   scroll-behavior: smooth;
 }
@@ -1279,23 +1307,26 @@ button, input { font: inherit; color: inherit; }
 
 /* composer */
 
-.composer { padding: 8px 16px 16px; }
+.composer { padding: 8px 16px 16px; max-width: 100%; overflow: hidden; }
 
 .reply-preview {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  max-width: 100%;
+  overflow: hidden;
   margin-bottom: 8px;
   padding: 8px 10px 8px 12px;
   border-left: 3px solid var(--violet);
   border-radius: 10px;
   background: rgba(124, 92, 255, 0.12);
 }
+.reply-preview > div { min-width: 0; flex: 1; }
 .reply-label { display: block; font-size: 11.5px; color: var(--txt-dim); }
 .reply-text {
   display: block;
-  max-width: 60vw;
+  max-width: 100%;
   font-size: 12.5px;
   color: var(--txt-faint);
   white-space: nowrap;
@@ -1307,6 +1338,7 @@ button, input { font: inherit; color: inherit; }
   display: flex;
   align-items: center;
   gap: 9px;
+  max-width: 100%;
   padding: 7px;
   border: 1px solid var(--line-strong);
   border-radius: 16px;
@@ -1320,8 +1352,9 @@ button, input { font: inherit; color: inherit; }
   box-shadow: 0 0 0 4px rgba(124, 92, 255, 0.14);
 }
 #message-input {
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
+  width: 100%;
   padding: 9px 4px;
   border: 0;
   background: transparent;
@@ -1333,6 +1366,7 @@ button, input { font: inherit; color: inherit; }
 .send-btn {
   display: grid;
   place-items: center;
+  flex: 0 0 40px;
   width: 40px;
   height: 40px;
   border: 0;
