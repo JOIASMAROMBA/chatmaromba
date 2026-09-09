@@ -19,6 +19,8 @@
     photoClear: $('#photo-clear'),
     photoInput: $('#photo-input'),
     photoHint: $('#photo-hint'),
+    emojiPick: $('#emoji-pick'),
+    avatarPicker: $('#avatar-picker'),
     gateStats: $('#gate-stats'),
     termsStep: $('#terms-step'),
     termsBody: $('#terms-body'),
@@ -43,6 +45,8 @@
     profInsta: $('#prof-insta'),
     profFraseConta: $('#prof-frase-conta'),
     profInstaAviso: $('#prof-insta-aviso'),
+    profPreview: $('#prof-preview'),
+    profEmojis: $('#prof-emojis'),
 
     app: $('#app'),
     sidebar: $('#sidebar'),
@@ -98,7 +102,7 @@
     socket: null,
     me: null,
     avatars: [],
-    avatar: '💪',
+    avatar: null,
     photo: null,
     rooms: { themes: [], states: [] },
     terms: null,
@@ -318,9 +322,45 @@
     el.profFraseConta.textContent = (el.profFrase.value.length) + '/90';
     el.profInstaAviso.textContent = 'Só aceita link ou @ do Instagram.';
     el.profInstaAviso.className = 'field-help';
+    pintarPreviewPerfil();
     el.profileModal.hidden = false;
     el.profNick.focus();
   }
+
+  /** o mesmo retrato da tela de entrada, agora dentro do editor */
+  function pintarPreviewPerfil() {
+    if (state.photo) {
+      el.profPreview.innerHTML = '<img src="/avatar/' + state.photo + '" alt="" />';
+      el.profPreview.classList.add('tem-conteudo');
+    } else if (state.avatar) {
+      el.profPreview.innerHTML = '<span class="retrato-emoji">' + escapeHtml(state.avatar) + '</span>';
+      el.profPreview.classList.add('tem-conteudo');
+    } else {
+      el.profPreview.innerHTML = SILHUETA;
+      el.profPreview.classList.remove('tem-conteudo');
+    }
+
+    if (!el.profEmojis.children.length) {
+      el.profEmojis.innerHTML = state.avatars
+        .map((e) => '<button type="button" class="avatar-opt" data-avatar="' + e + '">' + e + '</button>')
+        .join('');
+    }
+    el.profEmojis.querySelectorAll('.avatar-opt').forEach((b) => {
+      b.classList.toggle('is-active', !state.photo && b.dataset.avatar === state.avatar);
+    });
+  }
+
+  el.profEmojis.addEventListener('click', (event) => {
+    const btn = event.target.closest('.avatar-opt');
+    if (!btn) return;
+    state.avatar = btn.dataset.avatar;
+    if (state.photo) {          // emoji e foto são excludentes
+      state.photo = null;
+      aplicarFoto(null);
+    }
+    pintarPreviewPerfil();
+    mostrarRetrato();
+  });
 
   el.profFrase.addEventListener('input', () => {
     el.profFraseConta.textContent = el.profFrase.value.length + '/90';
@@ -337,7 +377,13 @@
     event.preventDefault();
 
     const novoNick = el.profNick.value.trim();
-    const trocouNick = state.me && novoNick && novoNick !== state.me.nick;
+    /**
+     * O apelido e a cara viajam juntos no mesmo evento de login, então
+     * salvar sempre reenvia os dois. Assim trocar só o emoji também vale,
+     * sem precisar de um caminho separado.
+     */
+    const precisaLogin = state.me && novoNick
+      && (novoNick !== state.me.nick || state.avatar !== state.me.avatar);
 
     const salvarPerfil = () => {
       state.socket.emit('set-profile', {
@@ -357,10 +403,10 @@
       });
     };
 
-    if (trocouNick) {
+    if (precisaLogin) {
       const versaoRegras = state.terms ? state.terms.versao : '';
       state.socket.emit('login', {
-        nick: novoNick, avatar: state.avatar, terms: versaoRegras
+        nick: novoNick, avatar: state.avatar || '👤', terms: versaoRegras
       }, (res) => {
         if (!res || !res.ok) {
           el.profInstaAviso.textContent = res && res.message ? res.message : 'Apelido indisponível.';
@@ -479,16 +525,29 @@
     return data.id;
   }
 
+  /** silhueta: o estado "ainda não escolhi nada" */
+  const SILHUETA = '<svg class="silhueta" viewBox="0 0 24 24" aria-hidden="true">'
+    + '<path d="M12 12.2a4.6 4.6 0 1 0 0-9.2 4.6 4.6 0 0 0 0 9.2Z"/>'
+    + '<path d="M12 14.3c-4.6 0-8.3 2.4-8.3 5.3V22h16.6v-2.4c0-2.9-3.7-5.3-8.3-5.3Z"/></svg>';
+
   function mostrarRetrato() {
     if (state.photo) {
       el.photoPreview.innerHTML = '<img src="/avatar/' + state.photo + '" alt="Sua foto" />';
-      el.photoClear.hidden = false;
-      el.avatarGrid.classList.add('is-dimmed');
+      el.photoPreview.classList.add('tem-conteudo');
+    } else if (state.avatar) {
+      el.photoPreview.innerHTML = '<span class="retrato-emoji">' + escapeHtml(state.avatar) + '</span>';
+      el.photoPreview.classList.add('tem-conteudo');
     } else {
-      el.photoPreview.innerHTML = '<span>' + escapeHtml(state.avatar) + '</span>';
-      el.photoClear.hidden = true;
-      el.avatarGrid.classList.remove('is-dimmed');
+      el.photoPreview.innerHTML = SILHUETA;
+      el.photoPreview.classList.remove('tem-conteudo');
     }
+    el.photoClear.hidden = !state.photo && !state.avatar;
+  }
+
+  /** fecha o painel de emojis */
+  function fecharEmojis() {
+    el.avatarPicker.hidden = true;
+    el.emojiPick.setAttribute('aria-expanded', 'false');
   }
 
   el.photoPick.addEventListener('click', () => el.photoInput.click());
@@ -503,6 +562,8 @@
       const blob = await encolherFoto(file);
       const id = await enviarFoto(blob);
       state.photo = id;
+      state.avatar = null;
+      fecharEmojis();
       mostrarRetrato();
       el.photoHint.textContent = 'Foto pronta (' + Math.round(blob.size / 1024) + ' KB).';
       if (state.me) aplicarFoto(id);
@@ -513,8 +574,11 @@
 
   el.photoClear.addEventListener('click', () => {
     state.photo = null;
+    state.avatar = null;
+    el.avatarGrid.querySelectorAll('.avatar-opt').forEach((b) => b.classList.remove('is-active'));
     mostrarRetrato();
-    el.photoHint.textContent = 'Voltou para o emoji.';
+    fecharEmojis();
+    el.photoHint.textContent = 'Opcional. Sem foto, você entra como silhueta.';
     if (state.me) aplicarFoto(null);
   });
 
@@ -548,25 +612,32 @@
 
   function renderAvatarPicker() {
     el.avatarGrid.innerHTML = state.avatars
-      .map((emoji, i) =>
-        '<button type="button" class="avatar-opt' + (i === 0 ? ' is-active' : '') +
-        '" data-avatar="' + emoji + '">' + emoji + '</button>'
+      .map((emoji) =>
+        '<button type="button" class="avatar-opt" data-avatar="' + emoji + '">' + emoji + '</button>'
       )
       .join('');
-    state.avatar = state.avatars[0];
   }
+
+  el.emojiPick.addEventListener('click', () => {
+    const abrindo = el.avatarPicker.hidden;
+    el.avatarPicker.hidden = !abrindo;
+    el.emojiPick.setAttribute('aria-expanded', String(abrindo));
+  });
 
   el.avatarGrid.addEventListener('click', (event) => {
     const btn = event.target.closest('.avatar-opt');
     if (!btn) return;
+
     el.avatarGrid.querySelectorAll('.avatar-opt').forEach((b) => b.classList.remove('is-active'));
     btn.classList.add('is-active');
     state.avatar = btn.dataset.avatar;
-    if (state.photo) {   // escolher emoji significa abrir mão da foto
+
+    if (state.photo) {   // emoji e foto são excludentes: um substitui o outro
       state.photo = null;
       if (state.me) aplicarFoto(null);
     }
     mostrarRetrato();
+    fecharEmojis();
   });
 
   /** feedback do campo de apelido: livre / em uso / conferindo */
@@ -670,7 +741,7 @@
     const nick = el.nickInput.value.trim();
     const versao = state.terms ? state.terms.versao : '';
 
-    state.socket.emit('login', { nick, avatar: state.avatar, terms: versao }, (res) => {
+    state.socket.emit('login', { nick, avatar: state.avatar || '👤', terms: versao }, (res) => {
       if (!res || !res.ok) {
         mostrarPasso('apelido');
         return rejectNick(res && res.message ? res.message : 'Não rolou entrar. Tenta de novo.');
@@ -1395,7 +1466,7 @@
   function comecarDoZero() {
     state.photo = null;
     state.profile = null;
-    state.avatar = state.avatars[0] || '💪';
+    state.avatar = null;
     el.nickInput.value = '';
 
     try {
@@ -1405,9 +1476,8 @@
       });
     } catch (e) { /* localStorage bloqueado, segue o jogo */ }
 
-    el.avatarGrid.querySelectorAll('.avatar-opt').forEach((b, i) => {
-      b.classList.toggle('is-active', i === 0);
-    });
+    el.avatarGrid.querySelectorAll('.avatar-opt').forEach((b) => b.classList.remove('is-active'));
+    fecharEmojis();
     mostrarRetrato();
   }
 

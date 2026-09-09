@@ -503,15 +503,16 @@ button, input { font: inherit; color: inherit; }
 }
 .field-help.is-erro { color: #ff7a8a; }
 
+.prof-cara { display: flex; align-items: center; gap: 12px; }
+.prof-cara .photo-preview { flex: 0 0 56px; width: 56px; height: 56px; font-size: 26px; }
+.prof-cara .silhueta { width: 32px; height: 32px; }
+.prof-cara-acoes { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.avatar-grid-sm { grid-template-columns: repeat(8, 1fr); gap: 5px; }
+.avatar-grid-sm .avatar-opt { font-size: 15px; border-radius: 8px; }
+
 .me-card { cursor: pointer; }
 
 /* ---- foto de perfil ---- */
-
-.field-label.sub {
-  margin-top: 16px;
-  font-size: 11px;
-  opacity: 0.75;
-}
 
 .photo-row {
   display: flex;
@@ -526,37 +527,75 @@ button, input { font: inherit; color: inherit; }
 .photo-preview {
   display: grid;
   place-items: center;
-  flex: 0 0 66px;
-  width: 66px;
-  height: 66px;
+  flex: 0 0 68px;
+  width: 68px;
+  height: 68px;
   border-radius: 50%;
   overflow: hidden;
-  font-size: 30px;
+  font-size: 32px;
+  /* estado vazio: discreto, sem gradiente chamando atenção para o nada */
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px dashed var(--line-strong);
+  transition: background 0.25s, border-color 0.25s, box-shadow 0.25s;
+}
+.photo-preview.tem-conteudo {
+  border-style: solid;
+  border-color: transparent;
   background: var(--grad);
-  box-shadow: 0 6px 20px rgba(124, 92, 255, 0.4);
+  box-shadow: 0 6px 20px rgba(124, 92, 255, 0.38);
 }
 .photo-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.retrato-emoji { line-height: 1; }
 
-.photo-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; }
+.silhueta {
+  width: 40px;
+  height: 40px;
+  fill: var(--txt-faint);
+  opacity: 0.75;
+}
+
+.photo-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 7px;
+  flex: 1;
+  min-width: 0;
+}
 
 .btn-ghost {
-  padding: 8px 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 13px;
   border: 1px solid var(--line-strong);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.06);
-  font-size: 13px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 13.2px;
   font-weight: 600;
+  text-align: left;
   cursor: pointer;
-  transition: background 0.16s, transform 0.16s, border-color 0.16s;
+  transition: background 0.16s, border-color 0.16s;
 }
-.btn-ghost:hover { background: rgba(255, 255, 255, 0.12); transform: translateY(-1px); }
-.btn-ghost.is-danger { border-color: rgba(255, 93, 109, 0.4); color: #ff9aa6; font-weight: 500; padding: 5px 10px; font-size: 12px; }
+.btn-ghost:hover { background: rgba(255, 255, 255, 0.11); border-color: rgba(255, 255, 255, 0.28); }
+.btn-ghost[aria-expanded="true"] { border-color: var(--violet); background: rgba(124, 92, 255, 0.14); }
+.btn-ico { font-size: 14px; }
 
-.photo-hint { font-size: 11.5px; line-height: 1.4; color: var(--txt-faint); }
+.btn-clear {
+  align-self: flex-start;
+  padding: 2px 4px;
+  border: 0;
+  background: transparent;
+  color: var(--txt-faint);
+  font-size: 11.5px;
+  text-decoration: underline;
+  cursor: pointer;
+  transition: color 0.16s;
+}
+.btn-clear:hover { color: #ff9aa6; }
 
-/* quando há foto, os emojis ficam de escanteio — mas continuam clicáveis */
-.avatar-grid.is-dimmed { opacity: 0.4; transition: opacity 0.2s; }
-.avatar-grid.is-dimmed:hover { opacity: 1; }
+.photo-hint { margin: 9px 2px 0; font-size: 11.5px; line-height: 1.4; color: var(--txt-faint); }
 
 /* retratos redondos no chat */
 .msg-avatar.has-photo,
@@ -577,6 +616,17 @@ button, input { font: inherit; color: inherit; }
 .member-avatar.has-photo { border-radius: 50%; }
 .me-avatar { overflow: hidden; }
 .me-avatar img { border-radius: 10px; }
+
+/* painel de emoji: fechado por padrão, abre no botão */
+.avatar-picker {
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.24);
+  animation: fade-up 0.2s ease;
+}
+.avatar-picker[hidden] { display: none; }
 
 .avatar-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 7px; }
 .avatar-opt {

@@ -206,6 +206,9 @@ app.use((_req, res) => res.status(404).json({ error: 'não existe' }));
 
 // ---------------------------------------------------------------- helpers
 
+/** Estado "ainda não escolhi nada": a silhueta do chat */
+const SEM_ESCOLHA = '👤';
+
 const AVATARS = ['💪', '🦍', '🐺', '🔥', '⚡', '🥇', '🍗', '🥤', '🧊', '🦈', '👑', '🐉', '🚀', '🥊', '🏋️', '😎'];
 const NICK_COLORS = ['#7c5cff', '#00d4ff', '#ff4d94', '#22c55e', '#facc15', '#f97316', '#c026d3', '#38bdf8', '#4ade80', '#ff5f6d'];
 
@@ -490,7 +493,7 @@ io.on('connection', (socket) => {
     nickKey: null,
     key,
     budget: guard.createBudget(),
-    avatar: pick(AVATARS),
+    avatar: SEM_ESCOLHA,
     color: pick(NICK_COLORS),
     roomId: null,
     sentAt: [],
@@ -560,8 +563,12 @@ io.on('connection', (socket) => {
     const previousNick = user.joined ? user.nick : null;
     claimNick(user, socket.id, requested);
 
-    if (typeof payload.avatar === 'string' && AVATARS.includes(payload.avatar)) {
+    // silhueta é escolha válida: quem não quis emoji nem foto entra assim
+    if (typeof payload.avatar === 'string'
+        && (AVATARS.includes(payload.avatar) || payload.avatar === SEM_ESCOLHA)) {
       user.avatar = payload.avatar;
+    } else if (!payload.avatar) {
+      user.avatar = SEM_ESCOLHA;
     }
     user.joined = true;
     // só vale o aceite da versão que está no ar; regra nova exige aceite novo

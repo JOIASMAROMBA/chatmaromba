@@ -44,19 +44,24 @@
         <span class="field-label">Sua cara no chat</span>
 
         <div class="photo-row">
-          <div class="photo-preview" id="photo-preview" aria-live="polite">
-            <span id="photo-preview-emoji">💪</span>
-          </div>
+          <div class="photo-preview" id="photo-preview" aria-live="polite"></div>
           <div class="photo-actions">
-            <button type="button" class="btn-ghost" id="photo-pick">📷 Usar uma foto</button>
-            <button type="button" class="btn-ghost is-danger" id="photo-clear" hidden>Remover foto</button>
-            <span class="photo-hint" id="photo-hint">A foto fica só enquanto você estiver online.</span>
+            <button type="button" class="btn-ghost" id="photo-pick">
+              <span class="btn-ico">📷</span> Inserir uma foto
+            </button>
+            <button type="button" class="btn-ghost" id="emoji-pick" aria-expanded="false">
+              <span class="btn-ico">😎</span> Inserir um emoji
+            </button>
+            <button type="button" class="btn-clear" id="photo-clear" hidden>remover</button>
           </div>
           <input type="file" id="photo-input" accept="image/*" hidden />
         </div>
 
-        <span class="field-label sub">ou escolha um emoji</span>
-        <div class="avatar-grid" id="avatar-grid"></div>
+        <p class="photo-hint" id="photo-hint">Opcional. Sem foto, você entra como silhueta.</p>
+
+        <div class="avatar-picker" id="avatar-picker" hidden>
+          <div class="avatar-grid" id="avatar-grid"></div>
+        </div>
       </div>
 
       <button class="btn-primary" type="submit">
@@ -248,8 +253,20 @@
         <small class="field-help" id="prof-insta-aviso">Só aceita link ou @ do Instagram.</small>
       </label>
 
+      <div class="field-sm">
+        <span>Sua cara</span>
+        <div class="prof-cara">
+          <div class="photo-preview" id="prof-preview"></div>
+          <div class="prof-cara-acoes">
+            <button type="button" class="btn-ghost" id="profile-photo-btn">
+              <span class="btn-ico">📷</span> Trocar a foto
+            </button>
+            <div class="avatar-grid avatar-grid-sm" id="prof-emojis"></div>
+          </div>
+        </div>
+      </div>
+
       <button class="btn-primary" type="submit">Salvar perfil</button>
-      <button class="btn-link" type="button" id="profile-photo-btn">📷 trocar minha foto</button>
     </form>
   </div>
 </div>
