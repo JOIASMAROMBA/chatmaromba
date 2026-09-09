@@ -77,8 +77,6 @@
     composer: $('#composer'),
     messageInput: $('#message-input'),
     sendBtn: $('#send-btn'),
-    emojiBtn: $('#emoji-btn'),
-    emojiPop: $('#emoji-pop'),
     replyPreview: $('#reply-preview'),
     replyNick: $('#reply-nick'),
     replyText: $('#reply-text'),
@@ -92,13 +90,6 @@
 
     toast: $('#toast')
   };
-
-  const EMOJIS = [
-    '😂', '😅', '😎', '🥲', '😳', '🤨', '😱', '🤯', '🥵', '🤝',
-    '💪', '🔥', '💊', '🥤', '🍗', '🥚', '🏋️', '🏃', '🧠', '❤️',
-    '👊', '👏', '🙏', '🤙', '👀', '🤡', '💀', '🐐', '🚀', '⚡',
-    '🥇', '🏆', '📉', '📈', '🍕', '🍺', '😴', '🤮', '😭', '😤'
-  ];
 
   const state = {
     socket: null,
@@ -1107,6 +1098,7 @@
   // ------------------------------------------------------ resposta
 
   function setReply(nick, text) {
+    if (!nick) return;   // sem autor não há o que responder
     state.replyTo = { nick, text: text.slice(0, 120) };
     el.replyNick.textContent = nick;
     el.replyText.textContent = state.replyTo.text;
@@ -1236,7 +1228,6 @@
     el.messageInput.value = '';
     clearReply();
     sendTyping(false);
-    el.emojiPop.hidden = true;
   });
 
   function sendTyping(isTyping) {
@@ -1255,25 +1246,6 @@
   el.messageInput.addEventListener('blur', () => sendTyping(false));
 
   // ------------------------------------------------------ emojis
-
-  el.emojiPop.innerHTML = EMOJIS.map((e) => '<button type="button">' + e + '</button>').join('');
-
-  el.emojiBtn.addEventListener('click', () => {
-    el.emojiPop.hidden = !el.emojiPop.hidden;
-  });
-
-  el.emojiPop.addEventListener('click', (event) => {
-    const btn = event.target.closest('button');
-    if (!btn) return;
-    el.messageInput.value += btn.textContent;
-    el.messageInput.focus();
-  });
-
-  document.addEventListener('click', (event) => {
-    if (!el.emojiPop.hidden && !event.target.closest('#emoji-pop') && !event.target.closest('#emoji-btn')) {
-      el.emojiPop.hidden = true;
-    }
-  });
 
   // ------------------------------------------------------ digitando
 
