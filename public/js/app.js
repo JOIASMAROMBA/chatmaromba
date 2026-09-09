@@ -352,7 +352,6 @@
           return;
         }
         state.profile = res.perfil;
-        guardarPerfilLocal();
         el.profileModal.hidden = true;
         toast('Perfil salvo.');
       });
@@ -371,24 +370,12 @@
         state.me = res.me;
         el.meNick.textContent = res.me.nick;
         pintarMeCard();
-        try { localStorage.setItem('cm_nick', res.me.nick); } catch (e) { /* ignore */ }
         salvarPerfil();
       });
     } else {
       salvarPerfil();
     }
   });
-
-  function guardarPerfilLocal() {
-    try { localStorage.setItem('cm_profile', JSON.stringify(state.profile)); } catch (e) { /* ignore */ }
-  }
-
-  function recuperarPerfilLocal() {
-    try {
-      const bruto = localStorage.getItem('cm_profile');
-      if (bruto) state.profile = JSON.parse(bruto);
-    } catch (e) { /* ignore */ }
-  }
 
   /** reenvia o perfil ao servidor depois de entrar ou reconectar */
   function reenviarPerfil() {
@@ -693,12 +680,6 @@
       pintarMeCard();
       if (state.photo) aplicarFoto(state.photo);
       reenviarPerfil();
-      try {
-        localStorage.setItem('cm_nick', res.me.nick);
-        localStorage.setItem('cm_avatar', res.me.avatar);
-        if (state.photo) localStorage.setItem('cm_photo', state.photo);
-        else localStorage.removeItem('cm_photo');
-      } catch (e) { /* ignore */ }
 
       el.gate.classList.add('is-out');
       setTimeout(() => { el.gate.style.display = 'none'; }, 380);
@@ -895,7 +876,6 @@
 
       if (window.innerWidth <= 780) setSidebar(false);
       el.messageInput.focus();
-      try { localStorage.setItem('cm_room', res.room.id); } catch (e) { /* ignore */ }
     });
   }
 
@@ -1294,7 +1274,7 @@
     socket.on('welcome', (data) => {
       state.avatars = data.avatars;
       if (!el.avatarGrid.children.length) renderAvatarPicker();
-      restorePrefs();
+      comecarDoZero();
     });
 
     socket.on('counts', (data) => {
@@ -1363,14 +1343,12 @@
 
     socket.on('profile-wiped', (data) => {
       state.profile = null;
-      try { localStorage.removeItem('cm_profile'); } catch (e) { /* ignore */ }
       toast('Seu perfil foi limpo pela moderação. Motivo: ' + data.reason);
     });
 
     socket.on('photo-removed', (data) => {
       state.photo = null;
       if (state.me) state.me.photo = null;
-      try { localStorage.removeItem('cm_photo'); } catch (e) { /* ignore */ }
       mostrarRetrato();
       pintarMeCard();
       toast('Sua foto foi removida pela moderação. Motivo: ' + data.reason);
@@ -1403,21 +1381,33 @@
     });
   }
 
-  function restorePrefs() {
+  /**
+   * Cada visita começa do zero: apelido em branco, sem foto, sem perfil.
+   *
+   * É o esperado num chat anônimo — a pessoa pode querer entrar com outro
+   * nome, ou estar num computador emprestado, e reencontrar a foto e o
+   * apelido da última vez seria no mínimo constrangedor.
+   *
+   * Sobrevivem ao fechar a aba apenas duas coisas, e nenhuma delas aparece
+   * na tela: o token do aparelho (para castigo de moderação não sumir com
+   * um F5) e o aceite das regras.
+   */
+  function comecarDoZero() {
+    state.photo = null;
+    state.profile = null;
+    state.avatar = state.avatars[0] || '💪';
+    el.nickInput.value = '';
+
     try {
-      const nick = localStorage.getItem('cm_nick');
-      const avatar = localStorage.getItem('cm_avatar');
-      if (nick) el.nickInput.value = nick;
-      recuperarPerfilLocal();
-      const foto = localStorage.getItem('cm_photo');
-      if (foto) state.photo = foto;
-      if (avatar && state.avatars.includes(avatar)) {
-        state.avatar = avatar;
-        el.avatarGrid.querySelectorAll('.avatar-opt').forEach((b) => {
-          b.classList.toggle('is-active', b.dataset.avatar === avatar);
-        });
-      }
+      // limpa também o que versões anteriores tinham deixado guardado
+      ['cm_nick', 'cm_avatar', 'cm_photo', 'cm_profile'].forEach((chave) => {
+        localStorage.removeItem(chave);
+      });
     } catch (e) { /* localStorage bloqueado, segue o jogo */ }
+
+    el.avatarGrid.querySelectorAll('.avatar-opt').forEach((b, i) => {
+      b.classList.toggle('is-active', i === 0);
+    });
     mostrarRetrato();
   }
 

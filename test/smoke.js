@@ -61,6 +61,29 @@ function wait(ms) {
   const sio = await fetch(URL + '/socket.io/socket.io.js');
   check('estáticos (css/js/socket.io)', css.ok && js.ok && sio.ok);
 
+  /**
+   * O navegador precisa perguntar antes de reusar o script. Com cache longo,
+   * a pessoa fica rodando código antigo depois de um deploy e a tela para de
+   * responder sem erro nenhum — foi exatamente o que aconteceu com o botão
+   * de editar perfil.
+   */
+  const cacheJs = js.headers.get('cache-control') || '';
+  check('script revalida a cada visita',
+    /no-cache|no-store|max-age=0/.test(cacheJs), cacheJs || '(sem cache-control)');
+
+  /**
+   * Todo elemento que o script procura tem que existir na página. Quando um
+   * não existe, o clique simplesmente não faz nada — o tipo de defeito mais
+   * difícil de perceber, porque não quebra o resto.
+   */
+  const paginaHtml = await fetch(URL + '/').then((r) => r.text());
+  const script = await fetch(URL + '/js/app.js').then((r) => r.text());
+  const procurados = [...new Set([...script.matchAll(/\$\('#([a-zA-Z0-9_-]+)'\)/g)].map((m) => m[1]))];
+  const existentes = new Set([...paginaHtml.matchAll(/id="([a-zA-Z0-9_-]+)"/g)].map((m) => m[1]));
+  const ausentes = procurados.filter((id) => !existentes.has(id));
+  check('página tem todos os elementos que o script usa',
+    ausentes.length === 0, ausentes.length ? 'faltando: ' + ausentes.join(', ') : procurados.length + ' conferidos');
+
   // ---------------------------------------------------------------- salas
   const a = await client('Monstro');
   const b = await client('Frango');

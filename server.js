@@ -116,10 +116,30 @@ app.use((_req, res, next) => {
 app.use(guard.httpLimiter({ nome: 'navegacao', perMinute: 300, burst: 90 }));
 guard.startJanitor();
 
+/**
+ * Cache dos estáticos.
+ *
+ * Com max-age longo, o navegador segurava o app.js por uma hora sem nem
+ * perguntar ao servidor. Depois de um deploy, a pessoa ficava rodando o
+ * código antigo contra o servidor novo — e o resultado é uma tela que
+ * simplesmente não responde, sem erro nenhum visível.
+ *
+ * "no-cache" não quer dizer "não guarde": quer dizer "guarde, mas pergunte
+ * antes de usar". A resposta é um 304 de alguns bytes quando nada mudou,
+ * e o arquivo novo assim que muda. Para uma página de 30 KB isso não pesa,
+ * e elimina de vez a classe de bug "o usuário está com a versão velha".
+ *
+ * A foto é a exceção: o endereço dela é o hash do conteúdo, então o mesmo
+ * endereço nunca muda de imagem e pode ficar guardado para sempre.
+ */
 app.use(express.static(path.join(__dirname, 'public'), {
-  maxAge: '1h',
   dotfiles: 'ignore',
-  index: 'index.html'
+  index: 'index.html',
+  etag: true,
+  lastModified: true,
+  setHeaders(res) {
+    res.setHeader('Cache-Control', 'no-cache');
+  }
 }));
 
 app.get('/api/rooms', (_req, res) => {
