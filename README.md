@@ -42,6 +42,8 @@ principais cidades. Para incluir mais cidades, é só adicionar na lista em
 |---|---|
 | `GET /api/rooms` | temas e estados/cidades |
 | `GET /api/stats` | total online e ocupação por sala |
+| `POST /api/avatar` | envia a foto de perfil (JPEG cru, cabeçalho `X-Device-Token`) |
+| `GET /avatar/:id` | entrega a foto |
 | `GET /health` | status do processo |
 
 ### Eventos Socket.IO
@@ -52,6 +54,9 @@ principais cidades. Para incluir mais cidades, é só adicionar na lista em
 ## Recursos
 
 - Apelido + avatar sem cadastro (guardados no `localStorage`)
+- **Foto de perfil opcional**: a imagem é cortada e comprimida no navegador (128x128 JPEG,
+  ~8 KB) antes de subir. Fica só na memória do servidor e some no restart. O emoji continua
+  valendo para quem não quiser aparecer
 - **Apelido exclusivo enquanto a pessoa está online**: ninguém mais consegue usar o mesmo nome
   ao mesmo tempo. A comparação ignora acento, maiúscula e espaço (`Monstro` = `mónstro` = `MONSTRO`).
   Quando a pessoa sai, o apelido é liberado na hora para quem quiser
@@ -87,6 +92,7 @@ No chat, digite os comandos no próprio campo de mensagem:
 | `/mute <apelido> [min] [motivo]` | silencia (padrão 10 min) |
 | `/ban <apelido> [min] [motivo]` | bane e desconecta (padrão 60 min) |
 | `/kick <apelido> [motivo]` | expulsa, mas pode voltar |
+| `/foto <apelido> [motivo]` | apaga a foto de perfil da pessoa |
 | `/liberar <apelido>` | tira o castigo |
 | `/limpar` | apaga o histórico da sala |
 | `/lista` | castigos e denúncias em aberto |
@@ -128,6 +134,8 @@ CHAT_URL=http://localhost:3555 MOD_PASSWORD=segredo node test/attack.js
 | Enxurrada de requisições HTTP | balde de fichas por IP, responde 429 |
 | XSS na mensagem | escape de HTML + `Content-Security-Policy` travando script de fora |
 | Impressão digital do servidor | `X-Powered-By` desligado |
+| Arquivo disfarçado de foto | confere os bytes mágicos do JPEG; serve sempre como `image/jpeg` + `nosniff` |
+| Enxurrada de upload | balde próprio, 10 por minuto por IP |
 
 O `/health` mostra os contadores de recusa. Se `recusas.porIp` subir com o chat
 funcionando normal, o limite está apertado demais e está barrando gente de verdade —
@@ -196,6 +204,8 @@ docker run -p 3000:3000 -e ALLOWED_ORIGIN=https://seu-dominio.com chatmaromba
 | `MAX_SOCKETS_PER_IP` | `120` | Conexões por IP (alto por causa do CGNAT) |
 | `NEW_PER_MINUTE_PER_IP` | `90` | Conexões novas por minuto, por IP |
 | `TRUST_PROXY` | auto | `1` força confiar no proxy, `0` desliga |
+| `MAX_PHOTO_BYTES` | `49152` | Tamanho máximo da foto já encolhida |
+| `MAX_PHOTOS` | `1500` | Fotos guardadas na memória antes de descartar as antigas |
 
 ## Antes de colocar no ar
 

@@ -1,5 +1,6 @@
 const { io } = require('socket.io-client');
 const URL = process.env.CHAT_URL || 'http://localhost:' + (process.env.PORT || 3000);
+const MOD_PASS = process.env.MOD_PASSWORD || 'senha-de-teste';
 
 let tokenSeq = 0;
 
@@ -155,6 +156,77 @@ function wait(ms) {
   const notice = await Promise.race([renameNotice, wait(800)]);
   check('sala avisa a troca de apelido', Boolean(notice && notice.text), notice && notice.text);
 
+  // ---------------------------------------------------------------- foto de perfil
+  // JPEG mínimo válido, montado à mão: começa com FFD8FF e termina com FFD9
+  const jpegFalso = Buffer.concat([
+    Buffer.from([0xff, 0xd8, 0xff, 0xe0]),
+    Buffer.from('CHATMAROMBA teste de foto'),
+    Buffer.from([0xff, 0xd9])
+  ]);
+
+  const tokenFoto = 'token-da-foto-' + Date.now();
+  const subir = (corpo, token) => fetch(URL + '/api/avatar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'image/jpeg', 'X-Device-Token': token || tokenFoto },
+    body: corpo
+  });
+
+  const envio = await subir(jpegFalso);
+  const envioJson = await envio.json().catch(() => ({}));
+  check('envio de foto aceito', envio.ok && envioJson.ok && envioJson.id, 'id=' + envioJson.id);
+
+  const baixar = await fetch(URL + '/avatar/' + envioJson.id);
+  check('foto servida com o tipo travado',
+    baixar.ok && baixar.headers.get('content-type') === 'image/jpeg'
+      && baixar.headers.get('x-content-type-options') === 'nosniff',
+    baixar.headers.get('content-type'));
+
+  const naoImagem = await subir(Buffer.from('<script>alert(1)</script>'));
+  check('arquivo que não é imagem é recusado', naoImagem.status === 400);
+
+  const gigante = await subir(Buffer.concat([
+    Buffer.from([0xff, 0xd8, 0xff]), Buffer.alloc(200 * 1024, 0x41), Buffer.from([0xff, 0xd9])
+  ]));
+  check('foto acima do limite é recusada', gigante.status === 400 || gigante.status === 413,
+    'HTTP ' + gigante.status);
+
+  // vestir a foto: só o dono do token consegue
+  const dono = await connect();
+  await new Promise((r) => dono.emit('login', { nick: 'DonoDaFoto' }, r));
+  const alheia = await new Promise((r) => dono.emit('set-photo', { id: envioJson.id }, r));
+  check('não dá para vestir a foto de outra pessoa', alheia.ok === false, alheia.message);
+  dono.close();
+
+  const eu = await new Promise((resolve) => {
+    const s = io(URL, { transports: ['websocket'], auth: { token: tokenFoto } });
+    s.on('connect', () => resolve(s));
+  });
+  await new Promise((r) => eu.emit('login', { nick: 'ComFoto' }, r));
+  const minha = await new Promise((r) => eu.emit('set-photo', { id: envioJson.id }, r));
+  check('o dono veste a própria foto', minha.ok === true && minha.photo === envioJson.id);
+
+  await new Promise((r) => eu.emit('join', { roomId: 'tema:paquera' }, r));
+  const comFoto = await new Promise((resolve) => {
+    eu.on('messages', (list) => {
+      const m = list.find((x) => x.type === 'chat' && x.photo);
+      if (m) resolve(m);
+    });
+    eu.emit('message', { text: 'olha meu retrato' }, () => {});
+  });
+  check('a mensagem carrega a foto', comFoto.photo === envioJson.id);
+
+  // moderador apaga a foto
+  const xerife = await client('XerifeDaFoto');
+  await new Promise((r) => xerife.s.emit('mod-login', { password: MOD_PASS }, r));
+  const apagou = await new Promise((r) =>
+    xerife.s.emit('mod-action', { action: 'photo', nick: 'ComFoto', reason: 'foto imprópria' }, r));
+  check('moderador apaga foto', apagou.ok === true, apagou.message);
+
+  const sumiu = await fetch(URL + '/avatar/' + envioJson.id);
+  check('foto apagada some do servidor', sumiu.status === 404, 'HTTP ' + sumiu.status);
+  eu.close();
+  xerife.s.close();
+
   // ---------------------------------------------------------------- anti-flood
   let flooded = false;
   a.s.on('warning', () => { flooded = true; });
@@ -163,7 +235,6 @@ function wait(ms) {
   check('anti-flood', flooded);
 
   // ---------------------------------------------------------------- moderação
-  const MOD_PASS = process.env.MOD_PASSWORD || 'senha-de-teste';
 
   const modo = await client('Xerife');
   await join(modo.s, 'tema:treta');

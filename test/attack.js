@@ -200,6 +200,59 @@ const skip = (name, motivo) => {
       bloqueados ? bloqueados + ' recusadas mesmo com IP falso' : 'furou o limite com IP falso');
   }
 
+  // ---------------------------------------------------------------- 6c
+  // Upload de foto: o vetor clássico é subir um arquivo que o navegador
+  // resolva executar como página em vez de mostrar como imagem.
+  {
+    const subir = (corpo, tipo) => fetch(URL + '/api/avatar', {
+      method: 'POST',
+      headers: { 'Content-Type': tipo || 'image/jpeg', 'X-Device-Token': 'sonda-foto-' + Date.now() },
+      body: corpo
+    });
+
+    // HTML puro disfarçado de foto.
+    // Um 429 aqui não prova nada sobre a checagem de conteúdo — só diz que a
+    // cota de upload ainda não voltou de um teste anterior. Então esperamos.
+    let html = await subir(Buffer.from('<html><script>alert(1)</script></html>'));
+    for (let tentativa = 0; tentativa < 3 && html.status === 429; tentativa += 1) {
+      await wait(7000);
+      html = await subir(Buffer.from('<html><script>alert(1)</script></html>'));
+    }
+    check('HTML disfarçado de foto', html.status === 400, 'HTTP ' + html.status);
+
+    // arquivo que é JPEG e HTML ao mesmo tempo
+    const poliglota = Buffer.concat([
+      Buffer.from([0xff, 0xd8, 0xff, 0xe0]),
+      Buffer.from('<script>alert(document.domain)</script>'),
+      Buffer.from([0xff, 0xd9])
+    ]);
+    const aceito = await subir(poliglota);
+    const dados = await aceito.json().catch(() => ({}));
+    if (dados.id) {
+      const servido = await fetch(URL + '/avatar/' + dados.id);
+      const tipo = servido.headers.get('content-type');
+      const sniff = servido.headers.get('x-content-type-options');
+      check('foto com script embutido não vira página',
+        tipo === 'image/jpeg' && sniff === 'nosniff', tipo + ' / ' + sniff);
+    } else {
+      check('foto com script embutido não vira página', true, 'recusada na entrada');
+    }
+
+    // enxurrada de uploads
+    const corpo = Buffer.concat([
+      Buffer.from([0xff, 0xd8, 0xff]), Buffer.from('carga'), Buffer.from([0xff, 0xd9])
+    ]);
+    let barrados = 0;
+    for (let round = 0; round < 3; round += 1) {
+      const lote = await Promise.all(
+        Array.from({ length: 12 }, (_, k) => subir(Buffer.concat([corpo, Buffer.from(String(k))]))
+          .then((r) => r.status).catch(() => 0))
+      );
+      barrados += lote.filter((s) => s === 429).length;
+    }
+    check('enxurrada de upload de fotos', barrados > 0, barrados + ' de 36 recusadas');
+  }
+
   // ---------------------------------------------------------------- 7
   // Cabeçalhos de segurança na resposta HTTP.
   {

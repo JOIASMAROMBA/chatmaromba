@@ -195,6 +195,79 @@ button, input { font: inherit; color: inherit; }
   40%, 60% { transform: translateX(7px); }
 }
 
+/* ---- foto de perfil ---- */
+
+.field-label.sub {
+  margin-top: 16px;
+  font-size: 11px;
+  opacity: 0.75;
+}
+
+.photo-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.photo-preview {
+  display: grid;
+  place-items: center;
+  flex: 0 0 66px;
+  width: 66px;
+  height: 66px;
+  border-radius: 50%;
+  overflow: hidden;
+  font-size: 30px;
+  background: var(--grad);
+  box-shadow: 0 6px 20px rgba(124, 92, 255, 0.4);
+}
+.photo-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.photo-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; }
+
+.btn-ghost {
+  padding: 8px 13px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.16s, transform 0.16s, border-color 0.16s;
+}
+.btn-ghost:hover { background: rgba(255, 255, 255, 0.12); transform: translateY(-1px); }
+.btn-ghost.is-danger { border-color: rgba(255, 93, 109, 0.4); color: #ff9aa6; font-weight: 500; padding: 5px 10px; font-size: 12px; }
+
+.photo-hint { font-size: 11.5px; line-height: 1.4; color: var(--txt-faint); }
+
+/* quando há foto, os emojis ficam de escanteio — mas continuam clicáveis */
+.avatar-grid.is-dimmed { opacity: 0.4; transition: opacity 0.2s; }
+.avatar-grid.is-dimmed:hover { opacity: 1; }
+
+/* retratos redondos no chat */
+.msg-avatar.has-photo,
+.member-avatar.has-photo,
+.me-avatar.has-photo { padding: 0; overflow: hidden; background: rgba(255, 255, 255, 0.06); }
+
+.msg-avatar img,
+.member-avatar img,
+.me-avatar img,
+.photo-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  border-radius: inherit;
+}
+.msg-avatar.has-photo { border-radius: 50%; }
+.member-avatar.has-photo { border-radius: 50%; }
+.me-avatar { overflow: hidden; }
+.me-avatar img { border-radius: 10px; }
+
 .avatar-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 7px; }
 .avatar-opt {
   aspect-ratio: 1;

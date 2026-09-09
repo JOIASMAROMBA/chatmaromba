@@ -220,8 +220,14 @@ function createMemory() {
   return { lastText: null, repeatCount: 0, linkAt: [] };
 }
 
+/** Mesma chave que identify() usa, para quem só tem o token em mãos */
+function tokenKey(token) {
+  return hash('t:' + String(token));
+}
+
 module.exports = {
   identify,
+  tokenKey,
   activePunishment,
   punish,
   pardon,

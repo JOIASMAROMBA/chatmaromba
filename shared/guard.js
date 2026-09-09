@@ -79,6 +79,7 @@ const BUDGETS = {
   report: [5, 60_000],
   login: [12, 60_000],
   'mod-action': [60, 60_000],
+  'set-photo': [10, 300_000],
   'mod-login': [5, 600_000]      // senha: 5 tentativas a cada 10 minutos
 };
 
@@ -186,26 +187,29 @@ const httpBuckets = new Map();
  * Generoso: uma pessoa carregando a página gasta poucas fichas, mas um
  * script batendo em looping seca o balde rápido.
  */
-function httpLimiter({ perMinute = 240, burst = 60 } = {}) {
+function httpLimiter({ nome = 'geral', perMinute = 240, burst = 60 } = {}) {
   const refillPerMs = perMinute / 60_000;
 
   return function limiter(req, res, next) {
     const ip = clientIp(req.headers, req.socket && req.socket.remoteAddress);
+    // cada limitador tem o próprio balde: sem o nome na chave, o limite
+    // frouxo da navegação encheria o balde do limite apertado do upload
+    const chave = nome + '|' + ip;
     const now = Date.now();
-    const bucket = httpBuckets.get(ip) || { tokens: burst, updatedAt: now };
+    const bucket = httpBuckets.get(chave) || { tokens: burst, updatedAt: now };
 
     bucket.tokens = Math.min(burst, bucket.tokens + (now - bucket.updatedAt) * refillPerMs);
     bucket.updatedAt = now;
 
     if (bucket.tokens < 1) {
-      httpBuckets.set(ip, bucket);
+      httpBuckets.set(chave, bucket);
       refused.httpFlood += 1;
       res.setHeader('Retry-After', '30');
       return res.status(429).json({ error: 'Devagar. Tenta de novo em alguns segundos.' });
     }
 
     bucket.tokens -= 1;
-    httpBuckets.set(ip, bucket);
+    httpBuckets.set(chave, bucket);
     next();
   };
 }

@@ -14,6 +14,11 @@
     nickInput: $('#nick-input'),
     nickStatus: $('#nick-status'),
     avatarGrid: $('#avatar-grid'),
+    photoPreview: $('#photo-preview'),
+    photoPick: $('#photo-pick'),
+    photoClear: $('#photo-clear'),
+    photoInput: $('#photo-input'),
+    photoHint: $('#photo-hint'),
 
     app: $('#app'),
     sidebar: $('#sidebar'),
@@ -69,6 +74,7 @@
     me: null,
     avatars: [],
     avatar: '💪',
+    photo: null,
     rooms: { themes: [], states: [] },
     roomIndex: new Map(),   // id -> { id, name, icon, tagline, kind }
     currentRoom: null,
@@ -134,6 +140,135 @@
     return '<span class="room-count' + (n ? '' : ' is-zero') + '" data-count-for="' + roomId + '">' + n + '</span>';
   }
 
+  // ------------------------------------------------------ foto de perfil
+
+  /** lado do quadrado final. 128 é nítido no celular e continua leve */
+  const PHOTO_SIZE = 128;
+  const PHOTO_QUALITY = 0.82;
+
+  /**
+   * Encolhe a foto AQUI, no navegador, antes de subir.
+   *
+   * É o passo que torna a funcionalidade viável: a foto da câmera tem uns
+   * 3 MB. Se ela subisse inteira, seriam 3 GB para mil pessoas, e o servidor
+   * teria que reprocessar tudo. Cortada em 128x128 e comprimida, vira uns
+   * 8 KB — e o navegador de quem vê ainda guarda em cache.
+   *
+   * O corte é quadrado e centralizado, que é como um retrato redondo espera.
+   */
+  function encolherFoto(file) {
+    return new Promise((resolve, reject) => {
+      if (!file.type.startsWith('image/')) return reject(new Error('Isso não é uma imagem.'));
+      if (file.size > 12 * 1024 * 1024) return reject(new Error('Imagem grande demais (máx. 12 MB).'));
+
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const lado = Math.min(img.width, img.height);
+        const sx = (img.width - lado) / 2;
+        const sy = (img.height - lado) / 2;
+
+        const canvas = document.createElement('canvas');
+        canvas.width = PHOTO_SIZE;
+        canvas.height = PHOTO_SIZE;
+        const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, sx, sy, lado, lado, 0, 0, PHOTO_SIZE, PHOTO_SIZE);
+
+        canvas.toBlob(
+          (blob) => (blob ? resolve(blob) : reject(new Error('Não consegui processar a imagem.'))),
+          'image/jpeg',
+          PHOTO_QUALITY
+        );
+      };
+
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('Não consegui abrir essa imagem.'));
+      };
+      img.src = url;
+    });
+  }
+
+  /** Sobe a foto já encolhida e devolve o id que o servidor deu */
+  async function enviarFoto(blob) {
+    const res = await fetch('/api/avatar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'image/jpeg', 'X-Device-Token': deviceToken() },
+      body: blob
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) throw new Error(data.error || 'Não deu para enviar a foto.');
+    return data.id;
+  }
+
+  function mostrarRetrato() {
+    if (state.photo) {
+      el.photoPreview.innerHTML = '<img src="/avatar/' + state.photo + '" alt="Sua foto" />';
+      el.photoClear.hidden = false;
+      el.avatarGrid.classList.add('is-dimmed');
+    } else {
+      el.photoPreview.innerHTML = '<span>' + escapeHtml(state.avatar) + '</span>';
+      el.photoClear.hidden = true;
+      el.avatarGrid.classList.remove('is-dimmed');
+    }
+  }
+
+  el.photoPick.addEventListener('click', () => el.photoInput.click());
+
+  el.photoInput.addEventListener('change', async () => {
+    const file = el.photoInput.files && el.photoInput.files[0];
+    el.photoInput.value = '';                 // deixa reescolher a mesma foto
+    if (!file) return;
+
+    el.photoHint.textContent = 'Preparando a foto...';
+    try {
+      const blob = await encolherFoto(file);
+      const id = await enviarFoto(blob);
+      state.photo = id;
+      mostrarRetrato();
+      el.photoHint.textContent = 'Foto pronta (' + Math.round(blob.size / 1024) + ' KB).';
+      if (state.me) aplicarFoto(id);
+    } catch (err) {
+      el.photoHint.textContent = err.message;
+    }
+  });
+
+  el.photoClear.addEventListener('click', () => {
+    state.photo = null;
+    mostrarRetrato();
+    el.photoHint.textContent = 'Voltou para o emoji.';
+    if (state.me) aplicarFoto(null);
+  });
+
+  /** avisa o servidor de qual retrato usar agora */
+  function aplicarFoto(id) {
+    state.socket.emit('set-photo', { id: id || '' }, (res) => {
+      if (!res || !res.ok) return toast(res && res.message ? res.message : 'Não deu para trocar a foto.');
+      if (state.me) state.me.photo = res.photo;
+      pintarMeCard();
+    });
+  }
+
+  /** o retrato do rodapé da barra lateral */
+  function pintarMeCard() {
+    const foto = state.me && state.me.photo;
+    el.meAvatar.innerHTML = foto
+      ? '<img src="/avatar/' + foto + '" alt="" />'
+      : escapeHtml(state.me ? state.me.avatar : '💪');
+  }
+
+  /** o retrato que aparece em mensagem e na lista de membros */
+  function retratoHtml(pessoa, classe) {
+    if (pessoa.photo) {
+      return '<span class="' + classe + ' has-photo"><img src="/avatar/'
+        + encodeURIComponent(pessoa.photo) + '" alt="" loading="lazy" /></span>';
+    }
+    return '<span class="' + classe + '">' + escapeHtml(pessoa.avatar || '💪') + '</span>';
+  }
+
   // ------------------------------------------------------ tela de entrada
 
   function renderAvatarPicker() {
@@ -152,6 +287,11 @@
     el.avatarGrid.querySelectorAll('.avatar-opt').forEach((b) => b.classList.remove('is-active'));
     btn.classList.add('is-active');
     state.avatar = btn.dataset.avatar;
+    if (state.photo) {   // escolher emoji significa abrir mão da foto
+      state.photo = null;
+      if (state.me) aplicarFoto(null);
+    }
+    mostrarRetrato();
   });
 
   /** feedback do campo de apelido: livre / em uso / conferindo */
@@ -243,8 +383,14 @@
       }
       state.me = res.me;
       el.meNick.textContent = res.me.nick;
-      el.meAvatar.textContent = res.me.avatar;
-      try { localStorage.setItem('cm_nick', res.me.nick); localStorage.setItem('cm_avatar', res.me.avatar); } catch (e) { /* ignore */ }
+      pintarMeCard();
+      if (state.photo) aplicarFoto(state.photo);
+      try {
+        localStorage.setItem('cm_nick', res.me.nick);
+        localStorage.setItem('cm_avatar', res.me.avatar);
+        if (state.photo) localStorage.setItem('cm_photo', state.photo);
+        else localStorage.removeItem('cm_photo');
+      } catch (e) { /* ignore */ }
 
       el.gate.classList.add('is-out');
       setTimeout(() => { el.gate.style.display = 'none'; }, 380);
@@ -496,6 +642,7 @@
       node.className = 'msg' + (mine ? ' is-me' : '');
       node.dataset.id = msg.id;
       node.dataset.nick = msg.nick;
+      if (msg.photo) node.dataset.photo = msg.photo;
       node.dataset.text = msg.text;
 
       const reply = msg.replyTo
@@ -503,7 +650,7 @@
         : '';
 
       node.innerHTML =
-        '<span class="msg-avatar">' + escapeHtml(msg.avatar || '💪') + '</span>' +
+        retratoHtml(msg, 'msg-avatar') +
         '<div class="msg-body">' +
           '<div class="msg-head">' +
             '<span class="msg-nick" style="color:' + (mine ? '#cbb8ff' : (msg.color || '#fff')) + '">' + escapeHtml(msg.nick) + '</span>' +
@@ -537,7 +684,8 @@
       state.socket.emit('report', {
         messageId: msg.dataset.id,
         nick: msg.dataset.nick,
-        text: msg.dataset.text
+        text: msg.dataset.text,
+        photo: msg.dataset.photo || null
       }, (res) => {
         toast(res && res.ok
           ? 'Denúncia enviada. A moderação vai olhar.'
@@ -584,6 +732,7 @@
     '/mute <apelido> [min] [motivo] — silencia',
     '/ban <apelido> [min] [motivo] — bane e desconecta',
     '/kick <apelido> [motivo] — expulsa (volta se quiser)',
+    '/foto <apelido> [motivo] — apaga a foto de perfil',
     '/liberar <apelido> — tira o castigo',
     '/limpar — apaga o histórico da sala',
     '/lista — castigos e denúncias em aberto'
@@ -614,7 +763,7 @@
       return true;
     }
 
-    const actions = { mute: 'mute', ban: 'ban', kick: 'kick', liberar: 'pardon' };
+    const actions = { mute: 'mute', ban: 'ban', kick: 'kick', liberar: 'pardon', foto: 'photo' };
     if (actions[cmd]) {
       const nick = parts.shift();
       if (!nick) { systemNotice('Uso: /' + cmd + ' <apelido> [minutos] [motivo]'); return true; }
@@ -746,7 +895,7 @@
         const you = state.me && m.id === state.me.id ? '<span class="tag-you">você</span>' : '';
         return (
           '<div class="member">' +
-            '<span class="member-avatar">' + escapeHtml(m.avatar) + '</span>' +
+            retratoHtml(m, 'member-avatar') +
             '<span class="member-nick" style="color:' + (m.color || '#fff') + '">' + escapeHtml(m.nick) + '</span>' +
             you +
           '</div>'
@@ -791,6 +940,7 @@
       }
       state.me = res.me;
       el.meNick.textContent = res.me.nick;
+      pintarMeCard();
       try { localStorage.setItem('cm_nick', res.me.nick); } catch (e) { /* ignore */ }
       toast('Agora você é ' + res.me.nick + '.');
     });
@@ -886,6 +1036,15 @@
       renderTyping();
     });
 
+    socket.on('photo-removed', (data) => {
+      state.photo = null;
+      if (state.me) state.me.photo = null;
+      try { localStorage.removeItem('cm_photo'); } catch (e) { /* ignore */ }
+      mostrarRetrato();
+      pintarMeCard();
+      toast('Sua foto foi removida pela moderação. Motivo: ' + data.reason);
+    });
+
     socket.on('warning', (data) => toast(data.text));
 
     socket.on('overloaded', (data) => {
@@ -914,6 +1073,8 @@
       const nick = localStorage.getItem('cm_nick');
       const avatar = localStorage.getItem('cm_avatar');
       if (nick) el.nickInput.value = nick;
+      const foto = localStorage.getItem('cm_photo');
+      if (foto) state.photo = foto;
       if (avatar && state.avatars.includes(avatar)) {
         state.avatar = avatar;
         el.avatarGrid.querySelectorAll('.avatar-opt').forEach((b) => {
@@ -921,6 +1082,7 @@
         });
       }
     } catch (e) { /* localStorage bloqueado, segue o jogo */ }
+    mostrarRetrato();
   }
 
   // ------------------------------------------------------ boot

@@ -12,6 +12,7 @@ const { Server } = require('socket.io');
 const { THEMES, STATES, buildRooms } = require('./shared/rooms');
 const mod = require('./shared/moderation');
 const guard = require('./shared/guard');
+const photos = require('./shared/photos');
 
 const PORT = process.env.PORT || 3000;
 const HISTORY_SIZE = 80;          // mensagens guardadas por sala
@@ -107,7 +108,7 @@ app.use((_req, res, next) => {
   next();
 });
 
-app.use(guard.httpLimiter({ perMinute: 300, burst: 90 }));
+app.use(guard.httpLimiter({ nome: 'navegacao', perMinute: 300, burst: 90 }));
 guard.startJanitor();
 
 app.use(express.static(path.join(__dirname, 'public'), {
@@ -124,12 +125,51 @@ app.get('/api/stats', (_req, res) => {
   res.json({ online: users.size, counts: roomCounts() });
 });
 
+/**
+ * Envio da foto de perfil.
+ *
+ * Vai por HTTP e não pelo socket de propósito: o socket tem teto de 16 KB,
+ * que é o que impede o ataque de evento gigante. Afrouxar aquele limite para
+ * caber foto reabriria o buraco. Aqui o limite é próprio e bem mais apertado
+ * que qualquer foto de câmera — o navegador já mandou ela encolhida.
+ */
+app.post('/api/avatar',
+  guard.httpLimiter({ nome: 'upload-foto', perMinute: 10, burst: 6 }),
+  express.raw({ type: 'image/jpeg', limit: photos.MAX_BYTES }),
+  (req, res) => {
+    const token = String(req.get('x-device-token') || '');
+    if (token.length < 8) return res.status(400).json({ error: 'sem identidade' });
+
+    const resultado = photos.save(req.body, mod.tokenKey(token));
+    if (!resultado.ok) return res.status(400).json({ error: resultado.error });
+
+    res.json({ ok: true, id: resultado.id });
+  });
+
+/**
+ * Entrega da foto. Três cuidados aqui:
+ *  - o tipo é fixo em image/jpeg, nunca o que o usuário disse que era
+ *  - nosniff impede o navegador de "adivinhar" outro tipo e executar algo
+ *  - o id é o hash do conteúdo, então pode cachear para sempre sem errar
+ */
+app.get('/avatar/:id', (req, res) => {
+  const foto = photos.get(req.params.id);
+  if (!foto) return res.status(404).end();
+
+  res.setHeader('Content-Type', 'image/jpeg');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Content-Disposition', 'inline');
+  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  res.end(foto.bytes);
+});
+
 app.get('/health', (_req, res) => res.json({
   ok: true,
   uptime: process.uptime(),
   sockets: users.size,
   memory: process.memoryUsage(),
-  guard: guard.snapshot()
+  guard: guard.snapshot(),
+  fotos: photos.snapshot()
 }));
 
 // nada além do que está mapeado acima
@@ -259,7 +299,7 @@ function roomMembers(roomId) {
   const members = [];
   for (const [id, user] of users) {
     if (user.roomId === roomId) {
-      members.push({ id, nick: user.nick, avatar: user.avatar, color: user.color });
+      members.push({ id, nick: user.nick, avatar: user.avatar, color: user.color, photo: user.photo });
     }
   }
   members.sort((a, b) => a.nick.localeCompare(b.nick, 'pt-BR'));
@@ -427,6 +467,7 @@ io.on('connection', (socket) => {
     sentAt: [],
     reportAt: [],
     memory: mod.createMemory(),
+    photo: null,
     isMod: false,
     joined: false
   };
@@ -493,16 +534,51 @@ io.on('connection', (socket) => {
     }
     user.joined = true;
 
-    reply({ ok: true, me: { id: socket.id, nick: user.nick, avatar: user.avatar, color: user.color } });
+    reply({ ok: true, me: { id: socket.id, nick: user.nick, avatar: user.avatar, color: user.color, photo: user.photo } });
 
     // trocou de nome no meio do papo: avisa a sala e atualiza a lista
     if (previousNick && previousNick !== user.nick && user.roomId) {
       systemMessage(user.roomId, `${previousNick} agora é ${user.nick}`);
       broadcastMemberDelta(socket, user.roomId, 'member-joined', {
-        member: { id: socket.id, nick: user.nick, avatar: user.avatar, color: user.color }
+        member: { id: socket.id, nick: user.nick, avatar: user.avatar, color: user.color, photo: user.photo }
       });
     }
   });
+
+  /**
+   * Adota a foto já enviada por HTTP. O id é conferido contra a identidade
+   * de quem subiu, senão daria para vestir a foto de outra pessoa.
+   */
+  socket.on('set-photo', (payload = {}, ack) => {
+    const reply = (data) => { if (typeof ack === 'function') ack(data); };
+    if (!within('set-photo', ack)) return;
+
+    const id = String(payload.id || '');
+
+    if (!id) {                                  // voltar para o emoji
+      user.photo = null;
+      atualizarRetrato();
+      return reply({ ok: true, photo: null });
+    }
+    if (!photos.ownedBy(id, user.key.tokenKey)) {
+      return reply({ ok: false, message: 'Essa foto não é sua.' });
+    }
+
+    user.photo = id;
+    atualizarRetrato();
+    reply({ ok: true, photo: id });
+  });
+
+  /** avisa a sala que o retrato mudou, sem precisar recarregar nada */
+  function atualizarRetrato() {
+    if (!user.roomId) return;
+    broadcastMemberDelta(socket, user.roomId, 'member-joined', {
+      member: {
+        id: socket.id, nick: user.nick, avatar: user.avatar,
+        color: user.color, photo: user.photo
+      }
+    });
+  }
 
   socket.on('join', (payload = {}, ack) => {
     const reply = (data) => { if (typeof ack === 'function') ack(data); };
@@ -547,7 +623,7 @@ io.on('connection', (socket) => {
     announceComingAndGoing(roomId, `${user.nick} entrou na sala`);
     sendMemberSnapshot(socket, roomId);
     broadcastMemberDelta(socket, roomId, 'member-joined', {
-      member: { id: socket.id, nick: user.nick, avatar: user.avatar, color: user.color }
+      member: { id: socket.id, nick: user.nick, avatar: user.avatar, color: user.color, photo: user.photo }
     });
     scheduleCounts();
   });
@@ -601,6 +677,7 @@ io.on('connection', (socket) => {
       nick: user.nick,
       avatar: user.avatar,
       color: user.color,
+      photo: user.photo || undefined,
       mod: user.isMod || undefined,
       text,
       replyTo: payload.replyTo
@@ -631,6 +708,7 @@ io.on('connection', (socket) => {
       messageId: String(payload.messageId || ''),
       nick: cleanText(payload.nick, MAX_NICK_LEN),
       text: cleanText(payload.text, 200),
+      photo: cleanText(payload.photo, 40) || null,
       byNick: user.nick,
       ts: now,
       resolved: false
@@ -696,13 +774,44 @@ io.on('connection', (socket) => {
           nick: target.user.nick
         });
         target.socket.emit(action === 'ban' ? 'banned' : 'muted', { until: record.until, reason });
-        if (action === 'ban') target.socket.disconnect(true);
+        if (action === 'ban') {
+          // quem é banido leva a foto junto: não faz sentido ela continuar de pé
+          if (target.user.photo) photos.remove(target.user.photo);
+          target.socket.disconnect(true);
+        }
       }
 
       const verb = { mute: 'silenciou', ban: 'baniu', kick: 'expulsou' }[action];
       console.log(`  [mod] ${user.nick} ${verb} ${target.user.nick}: ${reason}`);
       notifyMods('mod-log', { by: user.nick, action, nick: target.user.nick, reason });
       return reply({ ok: true, message: `Você ${verb} ${target.user.nick}.` });
+    }
+
+    /**
+     * Apagar a foto de alguém. Some para todo mundo na hora, inclusive das
+     * mensagens antigas, porque o id da foto deixa de existir no servidor.
+     */
+    if (action === 'photo') {
+      const alvo = findUserByNick(payload.nick);
+      if (!alvo) return reply({ ok: false, message: `Não achei "${payload.nick}" online.` });
+      if (!alvo.user.photo) return reply({ ok: false, message: 'Essa pessoa não tem foto.' });
+
+      photos.remove(alvo.user.photo);
+      alvo.user.photo = null;
+      alvo.socket.emit('photo-removed', { reason });
+      if (alvo.user.roomId) {
+        io.to(alvo.user.roomId).emit('member-joined', {
+          roomId: alvo.user.roomId,
+          total: roomSize(alvo.user.roomId),
+          member: {
+            id: alvo.socket.id, nick: alvo.user.nick, avatar: alvo.user.avatar,
+            color: alvo.user.color, photo: null
+          }
+        });
+      }
+      console.log(`  [mod] ${user.nick} apagou a foto de ${alvo.user.nick}: ${reason}`);
+      notifyMods('mod-log', { by: user.nick, action: 'photo', nick: alvo.user.nick, reason });
+      return reply({ ok: true, message: `Foto de ${alvo.user.nick} apagada.` });
     }
 
     if (action === 'pardon') {

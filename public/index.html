@@ -41,7 +41,21 @@
       </label>
 
       <div class="field">
-        <span class="field-label">Escolha seu avatar</span>
+        <span class="field-label">Sua cara no chat</span>
+
+        <div class="photo-row">
+          <div class="photo-preview" id="photo-preview" aria-live="polite">
+            <span id="photo-preview-emoji">💪</span>
+          </div>
+          <div class="photo-actions">
+            <button type="button" class="btn-ghost" id="photo-pick">📷 Usar uma foto</button>
+            <button type="button" class="btn-ghost is-danger" id="photo-clear" hidden>Remover foto</button>
+            <span class="photo-hint" id="photo-hint">A foto fica só enquanto você estiver online.</span>
+          </div>
+          <input type="file" id="photo-input" accept="image/*" hidden />
+        </div>
+
+        <span class="field-label sub">ou escolha um emoji</span>
         <div class="avatar-grid" id="avatar-grid"></div>
       </div>
 
