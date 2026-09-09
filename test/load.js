@@ -15,6 +15,7 @@ const CLIENTS = Number(process.argv[2] || 500);
 const MSGS_PER_SEC = Number(process.argv[3] || 20);
 const DURATION_S = Number(process.argv[4] || 15);
 const ROOM = process.env.ROOM || 'tema:geral';
+let TERMS = '';
 
 const sockets = [];
 const roomSizes = {};
@@ -42,7 +43,7 @@ function connectOne(index) {
 
     s.on('connect_error', () => { errors += 1; finish(false); });
     s.on('connect', () => {
-      s.emit('login', { nick: 'Carga' + index }, (res) => {
+      s.emit('login', { nick: 'Carga' + index, terms: TERMS }, (res) => {
         if (!res || !res.ok) { errors += 1; return finish(false); }
         s.emit('join', { roomId: ROOM }, (res) => {
           s.__room = res && res.room ? res.room.id : ROOM;

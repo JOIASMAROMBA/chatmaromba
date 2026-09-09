@@ -1,6 +1,7 @@
 const { io } = require('socket.io-client');
 const URL = process.env.CHAT_URL || 'http://localhost:' + (process.env.PORT || 3000);
 const MOD_PASS = process.env.MOD_PASSWORD || 'senha-de-teste';
+let TERMS_VERSAO = '';
 
 let tokenSeq = 0;
 
@@ -15,7 +16,7 @@ function connect() {
 }
 
 function login(s, nick, avatar) {
-  return new Promise((resolve) => s.emit('login', { nick, avatar }, resolve));
+  return new Promise((resolve) => s.emit('login', { nick, avatar, terms: TERMS_VERSAO }, resolve));
 }
 
 function checkNick(s, nick) {
@@ -43,6 +44,11 @@ function wait(ms) {
   };
 
   // ---------------------------------------------------------------- API
+  const regras = await fetch(URL + '/api/terms').then((r) => r.json());
+  TERMS_VERSAO = regras.versao;
+  check('GET /api/terms', Boolean(regras.versao && regras.secoes.length >= 4),
+    'versão ' + regras.versao + ', ' + regras.secoes.length + ' seções');
+
   const rooms = await fetch(URL + '/api/rooms').then((r) => r.json());
   check('GET /api/rooms', rooms.themes.length === 14 && rooms.states.length === 27,
     'temas=' + rooms.themes.length + ' estados=' + rooms.states.length);
@@ -103,6 +109,29 @@ function wait(ms) {
   const hist = await join(c.s, 'tema:venenos');
   check('histórico da sala', hist.history.some((m) => m.type === 'chat' && m.text.includes('bora treinar')),
     'msgs=' + hist.history.length);
+
+  // ---------------------------------------------------------------- regras de uso
+  // A trava tem que estar no servidor. Se estivesse só na tela, bastaria
+  // falar direto com o socket, como este teste faz, para pular tudo.
+  const semAceite = await connect();
+  const loginSemAceite = await new Promise((r) =>
+    semAceite.emit('login', { nick: 'SemRegras' }, r));
+  check('login funciona sem aceitar', loginSemAceite.ok === true);
+
+  const entradaBarrada = await join(semAceite, 'tema:geral');
+  check('sem aceitar as regras não entra em sala',
+    entradaBarrada.ok === false && entradaBarrada.error === 'terms', entradaBarrada.message);
+
+  const versaoErrada = await new Promise((r) =>
+    semAceite.emit('login', { nick: 'SemRegras', terms: 'versao-inventada' }, r));
+  const aindaBarrado = await join(semAceite, 'tema:geral');
+  check('aceite de versão errada não vale',
+    versaoErrada.ok === true && aindaBarrado.ok === false && aindaBarrado.error === 'terms');
+
+  await new Promise((r) => semAceite.emit('login', { nick: 'SemRegras', terms: TERMS_VERSAO }, r));
+  const liberado = await join(semAceite, 'tema:geral');
+  check('com o aceite certo, entra', liberado.ok === true, liberado.room && liberado.room.name);
+  semAceite.close();
 
   // ---------------------------------------------------------------- apelido exclusivo
   const intruso = await connect();
@@ -192,7 +221,7 @@ function wait(ms) {
 
   // vestir a foto: só o dono do token consegue
   const dono = await connect();
-  await new Promise((r) => dono.emit('login', { nick: 'DonoDaFoto' }, r));
+  await new Promise((r) => dono.emit('login', { nick: 'DonoDaFoto', terms: TERMS_VERSAO }, r));
   const alheia = await new Promise((r) => dono.emit('set-photo', { id: envioJson.id }, r));
   check('não dá para vestir a foto de outra pessoa', alheia.ok === false, alheia.message);
   dono.close();
@@ -201,7 +230,7 @@ function wait(ms) {
     const s = io(URL, { transports: ['websocket'], auth: { token: tokenFoto } });
     s.on('connect', () => resolve(s));
   });
-  await new Promise((r) => eu.emit('login', { nick: 'ComFoto' }, r));
+  await new Promise((r) => eu.emit('login', { nick: 'ComFoto', terms: TERMS_VERSAO }, r));
   const minha = await new Promise((r) => eu.emit('set-photo', { id: envioJson.id }, r));
   check('o dono veste a própria foto', minha.ok === true && minha.photo === envioJson.id);
 

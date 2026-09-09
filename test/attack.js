@@ -13,6 +13,7 @@ const { io } = require('socket.io-client');
 
 const URL = process.env.CHAT_URL || 'http://localhost:' + (process.env.PORT || 3555);
 const MOD_PASS = process.env.MOD_PASSWORD || 'segredo';
+let TERMS = '';
 
 let seq = 0;
 function connect(opts = {}) {
@@ -70,6 +71,7 @@ const skip = (name, motivo) => {
 };
 
 (async () => {
+  TERMS = await fetch(URL + '/api/terms').then((r) => r.json()).then((t) => t.versao).catch(() => '');
   const openSockets = [];
   const track = (s) => { openSockets.push(s); return s; };
 
@@ -78,7 +80,7 @@ const skip = (name, motivo) => {
   // é válido. Se passar, dá para inflar a memória com salas fantasma.
   {
     const s = track(await connect());
-    await emit(s, 'login', { nick: 'SondaSalas' });
+    await emit(s, 'login', { nick: 'SondaSalas', terms: TERMS });
     const res = await emit(s, 'join', { roomId: 'tema:geral~999999' });
     const entrouEmSalaFantasma = res && res.ok && res.room && res.room.shard > 40;
     check('divisão de sala fora do limite', !entrouEmSalaFantasma,
@@ -89,7 +91,7 @@ const skip = (name, motivo) => {
   // Força bruta na senha do moderador.
   {
     const s = track(await connect());
-    await emit(s, 'login', { nick: 'SondaSenha' });
+    await emit(s, 'login', { nick: 'SondaSenha', terms: TERMS });
     let tentativas = 0;
     let bloqueado = false;
     for (let i = 0; i < 40; i += 1) {
@@ -105,7 +107,7 @@ const skip = (name, motivo) => {
   // Mensagem gigante: o padrão do socket.io aceita 1 MB por evento.
   {
     const s = track(await connect());
-    await emit(s, 'login', { nick: 'SondaGigante' });
+    await emit(s, 'login', { nick: 'SondaGigante', terms: TERMS });
     await emit(s, 'join', { roomId: 'tema:zoeira' });
     const gigante = 'A'.repeat(900 * 1024);
     let derrubado = false;
@@ -122,12 +124,13 @@ const skip = (name, motivo) => {
   // Enxurrada de "está digitando": cada um vira broadcast para a sala toda.
   {
     const s = track(await connect());
-    await emit(s, 'login', { nick: 'SondaDigitando' });
+    await emit(s, 'login', { nick: 'SondaDigitando', terms: TERMS });
     await emit(s, 'join', { roomId: 'tema:zoeira' });
 
     const espiao = track(await connect());
-    await emit(espiao, 'login', { nick: 'SondaEspiao' });
-    await emit(espiao, 'join', { roomId: 'tema:zoeira' });
+    await emit(espiao, 'login', { nick: 'SondaEspiao', terms: TERMS });
+    const entrou = await emit(espiao, 'join', { roomId: 'tema:zoeira' });
+    if (!entrou || !entrou.ok) throw new Error('o espião não entrou na sala: teste inválido');
 
     let recebidos = 0;
     espiao.on('typing', () => { recebidos += 1; });
@@ -140,7 +143,7 @@ const skip = (name, motivo) => {
   // Troca de sala em looping: cada entrada gera avisos e listas.
   {
     const s = track(await connect());
-    await emit(s, 'login', { nick: 'SondaPulo' });
+    await emit(s, 'login', { nick: 'SondaPulo', terms: TERMS });
     let recusas = 0;
     for (let i = 0; i < 80; i += 1) {
       const res = await emit(s, 'join', { roomId: i % 2 ? 'tema:treta' : 'tema:zoeira' });
@@ -171,7 +174,7 @@ const skip = (name, motivo) => {
         const s = track(await connect());
         // o servidor pode aceitar o socket e recusar logo em seguida
         s.on('overloaded', () => { recusado = true; });
-        const res = await emit(s, 'login', { nick: 'Sequestro' + i });
+        const res = await emit(s, 'login', { nick: 'Sequestro' + i, terms: TERMS });
         if (res && res.ok) nicks.push(res.me.nick);
         else recusado = true;
         if (recusado) break;

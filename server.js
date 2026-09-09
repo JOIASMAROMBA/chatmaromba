@@ -13,6 +13,7 @@ const { THEMES, STATES, buildRooms } = require('./shared/rooms');
 const mod = require('./shared/moderation');
 const guard = require('./shared/guard');
 const photos = require('./shared/photos');
+const terms = require('./shared/terms');
 
 const PORT = process.env.PORT || 3000;
 const HISTORY_SIZE = 80;          // mensagens guardadas por sala
@@ -119,6 +120,10 @@ app.use(express.static(path.join(__dirname, 'public'), {
 
 app.get('/api/rooms', (_req, res) => {
   res.json({ themes: THEMES, states: STATES });
+});
+
+app.get('/api/terms', (_req, res) => {
+  res.json({ versao: terms.VERSAO, intro: terms.INTRO, secoes: terms.SECOES, idade: terms.IDADE });
 });
 
 app.get('/api/stats', (_req, res) => {
@@ -468,6 +473,7 @@ io.on('connection', (socket) => {
     reportAt: [],
     memory: mod.createMemory(),
     photo: null,
+    acceptedTerms: false,
     isMod: false,
     joined: false
   };
@@ -533,8 +539,10 @@ io.on('connection', (socket) => {
       user.avatar = payload.avatar;
     }
     user.joined = true;
+    // só vale o aceite da versão que está no ar; regra nova exige aceite novo
+    if (String(payload.terms || '') === terms.VERSAO) user.acceptedTerms = true;
 
-    reply({ ok: true, me: { id: socket.id, nick: user.nick, avatar: user.avatar, color: user.color, photo: user.photo } });
+    reply({ ok: true, termsVersion: terms.VERSAO, me: { id: socket.id, nick: user.nick, avatar: user.avatar, color: user.color, photo: user.photo } });
 
     // trocou de nome no meio do papo: avisa a sala e atualiza a lista
     if (previousNick && previousNick !== user.nick && user.roomId) {
@@ -601,6 +609,14 @@ io.on('connection', (socket) => {
     }
     if (!user.joined) {
       return reply({ ok: false, error: 'Escolha um apelido antes' });
+    }
+    /**
+     * Sem aceite das regras, ninguém entra em sala. A checagem é aqui no
+     * servidor de propósito: travar só na tela seria enfeite, bastaria falar
+     * direto com o socket para pular. É isto que dá base para banir depois.
+     */
+    if (!user.acceptedTerms) {
+      return reply({ ok: false, error: 'terms', message: 'Você precisa aceitar as regras antes de entrar.' });
     }
 
     // se a sala pedida encheu, cai na próxima divisão do mesmo tema

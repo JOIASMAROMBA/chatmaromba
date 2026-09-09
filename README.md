@@ -41,6 +41,7 @@ principais cidades. Para incluir mais cidades, é só adicionar na lista em
 | Rota | Retorno |
 |---|---|
 | `GET /api/rooms` | temas e estados/cidades |
+| `GET /api/terms` | regras de uso e versão vigente |
 | `GET /api/stats` | total online e ocupação por sala |
 | `POST /api/avatar` | envia a foto de perfil (JPEG cru, cabeçalho `X-Device-Token`) |
 | `GET /avatar/:id` | entrega a foto |
@@ -79,6 +80,18 @@ npm test
 Sobe três clientes, entra em salas de tema/estado/cidade, troca mensagens e checa
 histórico, membros e anti-flood.
 
+## Regras de uso
+
+O texto fica em [shared/terms.js](shared/terms.js), num lugar só, e alimenta três pontos:
+a tela de entrada, o comando `/regras` e a checagem do servidor.
+
+A aceitação é **verificada no servidor**: sem ela, `join` responde `error: terms` e a pessoa
+não entra em sala nenhuma. Travar só na tela seria enfeite — bastaria falar direto com o
+socket para pular.
+
+Ao mudar o texto, **mude também a `VERSAO`**. Quem já aceitou volta a ver a tela, que é o
+comportamento certo quando as regras mudam.
+
 ## Moderação
 
 Ligue definindo `MOD_PASSWORD` no servidor. Sem essa variável, a moderação humana
@@ -96,6 +109,7 @@ No chat, digite os comandos no próprio campo de mensagem:
 | `/liberar <apelido>` | tira o castigo |
 | `/limpar` | apaga o histórico da sala |
 | `/lista` | castigos e denúncias em aberto |
+| `/regras` | reabre as regras de uso |
 | `/ajuda` | mostra tudo isso |
 
 Moderador também ganha 🗑 para apagar mensagem, e qualquer pessoa ganha 🚩 para denunciar.

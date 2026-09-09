@@ -60,12 +60,32 @@
       </div>
 
       <button class="btn-primary" type="submit">
-        Entrar no chat <span class="btn-arrow">→</span>
+        Continuar <span class="btn-arrow">→</span>
       </button>
       <p class="gate-note">Sem cadastro. Sem e-mail. É só entrar e trocar ideia.</p>
     </form>
 
-    <ul class="gate-stats">
+    <!-- passo 2: regras -->
+    <section class="terms-step" id="terms-step" hidden>
+      <header class="terms-head">
+        <h2>Antes de entrar, o combinado</h2>
+        <p>Leia até o fim. É rápido, e é isso que mantém o chat um lugar decente.</p>
+      </header>
+
+      <div class="terms-body" id="terms-body" tabindex="0"></div>
+
+      <label class="terms-accept">
+        <input type="checkbox" id="terms-check" />
+        <span id="terms-age">Li e concordo com as regras.</span>
+      </label>
+
+      <button class="btn-primary" id="terms-go" disabled>
+        Aceitar e entrar <span class="btn-arrow">→</span>
+      </button>
+      <button class="btn-link" id="terms-back" type="button">← voltar e mudar meu apelido</button>
+    </section>
+
+    <ul class="gate-stats" id="gate-stats">
       <li><strong id="gate-online">0</strong><span>online agora</span></li>
       <li><strong id="gate-rooms">0</strong><span>salas</span></li>
       <li><strong>27</strong><span>estados</span></li>
@@ -117,6 +137,7 @@
         </div>
         <button class="icon-btn" id="edit-me" title="Trocar apelido/avatar" aria-label="Trocar apelido">✏️</button>
       </div>
+      <button class="rules-link" id="rules-link" type="button">📜 Reler as regras</button>
     </footer>
   </aside>
 
@@ -181,6 +202,17 @@
 </div>
 
 <div class="toast" id="toast" hidden></div>
+
+<!-- regras abertas de dentro do chat -->
+<div class="modal" id="rules-modal" hidden>
+  <div class="modal-card">
+    <header class="modal-head">
+      <h3>📜 Regras do CHATMAROMBA</h3>
+      <button class="icon-btn" id="rules-close" aria-label="Fechar">✕</button>
+    </header>
+    <div class="terms-body" id="rules-body"></div>
+  </div>
+</div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script src="/js/app.js"></script>

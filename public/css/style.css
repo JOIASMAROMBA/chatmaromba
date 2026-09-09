@@ -195,6 +195,183 @@ button, input { font: inherit; color: inherit; }
   40%, 60% { transform: translateX(7px); }
 }
 
+/* ---- regras de uso ---- */
+
+.terms-step { animation: fade-up 0.3s ease; }
+
+.terms-head { margin-bottom: 14px; }
+.terms-head h2 { font-size: 20px; margin-bottom: 5px; }
+.terms-head p { margin: 0; font-size: 12.5px; color: var(--txt-faint); }
+
+.terms-body {
+  max-height: min(46vh, 380px);
+  overflow-y: auto;
+  padding: 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.28);
+  outline: none;
+}
+.terms-body:focus-visible { border-color: var(--violet); }
+
+.terms-intro {
+  margin: 0 0 14px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--txt-dim);
+}
+
+.terms-section { margin-bottom: 16px; }
+.terms-section:last-of-type { margin-bottom: 6px; }
+
+.terms-section h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 13.5px;
+  letter-spacing: -0.01em;
+}
+.terms-icon { font-size: 15px; }
+
+.terms-section ul { margin: 0; padding: 0; list-style: none; }
+.terms-section li {
+  margin-bottom: 9px;
+  padding-left: 12px;
+  border-left: 2px solid var(--line-strong);
+}
+.terms-section li strong {
+  display: block;
+  font-size: 12.8px;
+  font-weight: 600;
+  color: #e8e8f2;
+  margin-bottom: 2px;
+}
+.terms-section li span {
+  display: block;
+  font-size: 12.2px;
+  line-height: 1.5;
+  color: var(--txt-faint);
+}
+
+/* a parte grave tem que doer de ler */
+.terms-section.is-grave {
+  padding: 12px;
+  border: 1px solid rgba(255, 93, 109, 0.35);
+  border-radius: 12px;
+  background: rgba(255, 93, 109, 0.07);
+}
+.terms-section.is-grave h4 { color: #ff9aa6; }
+.terms-section.is-grave li { border-left-color: rgba(255, 93, 109, 0.45); }
+
+.terms-version {
+  margin: 12px 0 0;
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--txt-faint);
+}
+
+.terms-accept {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 14px 0;
+  padding: 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 12.8px;
+  line-height: 1.5;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+.terms-accept:hover { background: rgba(255, 255, 255, 0.07); }
+.terms-accept:has(input:checked) {
+  border-color: rgba(182, 255, 60, 0.45);
+  background: rgba(182, 255, 60, 0.08);
+}
+.terms-accept input {
+  flex: 0 0 auto;
+  width: 19px;
+  height: 19px;
+  margin: 0;
+  accent-color: var(--violet);
+  cursor: pointer;
+}
+
+.btn-primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+  filter: none;
+  box-shadow: none;
+}
+
+.btn-link {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  padding: 6px;
+  border: 0;
+  background: transparent;
+  color: var(--txt-faint);
+  font-size: 12px;
+  cursor: pointer;
+  transition: color 0.16s;
+}
+.btn-link:hover { color: var(--txt); }
+
+.rules-link {
+  width: 100%;
+  margin-top: 8px;
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--txt-faint);
+  font-size: 11.8px;
+  cursor: pointer;
+  transition: background 0.16s, color 0.16s;
+}
+.rules-link:hover { background: rgba(255, 255, 255, 0.05); color: var(--txt); }
+
+/* janela de releitura das regras */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(3px);
+  animation: fade-in 0.2s ease;
+}
+.modal[hidden] { display: none; }
+
+.modal-card {
+  width: min(560px, 100%);
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+  padding: 18px;
+  border: 1px solid var(--line-strong);
+  border-radius: 20px;
+  background: var(--panel-solid);
+  box-shadow: var(--shadow);
+  animation: pop-in 0.28s cubic-bezier(0.2, 0.9, 0.25, 1.1);
+}
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.modal-head h3 { font-size: 16px; }
+.modal-card .terms-body { max-height: 70vh; }
+
 /* ---- foto de perfil ---- */
 
 .field-label.sub {

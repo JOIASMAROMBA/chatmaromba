@@ -19,6 +19,17 @@
     photoClear: $('#photo-clear'),
     photoInput: $('#photo-input'),
     photoHint: $('#photo-hint'),
+    gateStats: $('#gate-stats'),
+    termsStep: $('#terms-step'),
+    termsBody: $('#terms-body'),
+    termsCheck: $('#terms-check'),
+    termsAge: $('#terms-age'),
+    termsGo: $('#terms-go'),
+    termsBack: $('#terms-back'),
+    rulesLink: $('#rules-link'),
+    rulesModal: $('#rules-modal'),
+    rulesBody: $('#rules-body'),
+    rulesClose: $('#rules-close'),
 
     app: $('#app'),
     sidebar: $('#sidebar'),
@@ -76,6 +87,7 @@
     avatar: '💪',
     photo: null,
     rooms: { themes: [], states: [] },
+    terms: null,
     roomIndex: new Map(),   // id -> { id, name, icon, tagline, kind }
     currentRoom: null,
     counts: {},
@@ -139,6 +151,86 @@
     const n = state.counts[roomId] || 0;
     return '<span class="room-count' + (n ? '' : ' is-zero') + '" data-count-for="' + roomId + '">' + n + '</span>';
   }
+
+  // ------------------------------------------------------ regras de uso
+
+  /**
+   * Desenha as regras. O mesmo HTML serve para a tela de entrada e para a
+   * janela de releitura dentro do chat — regra que só aparece uma vez, na
+   * pressa de entrar, não é regra que alguém lembra.
+   */
+  function montarRegras(destino) {
+    const t = state.terms;
+    if (!t) { destino.innerHTML = '<p class="terms-intro">Carregando as regras...</p>'; return; }
+
+    const secoes = t.secoes.map((secao) => {
+      const itens = secao.itens.map((item) =>
+        '<li><strong>' + escapeHtml(item.titulo) + '</strong>'
+        + '<span>' + escapeHtml(item.texto) + '</span></li>'
+      ).join('');
+
+      return (
+        '<section class="terms-section' + (secao.tom === 'grave' ? ' is-grave' : '') + '">'
+        + '<h4><span class="terms-icon">' + secao.icone + '</span>' + escapeHtml(secao.titulo) + '</h4>'
+        + '<ul>' + itens + '</ul>'
+        + '</section>'
+      );
+    }).join('');
+
+    destino.innerHTML =
+      '<p class="terms-intro">' + escapeHtml(t.intro) + '</p>'
+      + secoes
+      + '<p class="terms-version">Versão ' + escapeHtml(t.versao) + '</p>';
+  }
+
+  /** true se a pessoa já aceitou exatamente esta versão das regras */
+  function jaAceitou() {
+    if (!state.terms) return false;
+    try {
+      return localStorage.getItem('cm_terms') === state.terms.versao;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function guardarAceite() {
+    try { localStorage.setItem('cm_terms', state.terms.versao); } catch (e) { /* ignore */ }
+  }
+
+  function mostrarPasso(qual) {
+    const naRegra = qual === 'regras';
+    el.gateForm.hidden = naRegra;
+    el.termsStep.hidden = !naRegra;
+    el.gateStats.hidden = naRegra;
+    if (naRegra) {
+      montarRegras(el.termsBody);
+      el.termsCheck.checked = false;
+      el.termsGo.disabled = true;
+      el.termsBody.scrollTop = 0;
+      el.termsBody.focus();
+    }
+  }
+
+  el.termsCheck.addEventListener('change', () => {
+    el.termsGo.disabled = !el.termsCheck.checked;
+  });
+
+  el.termsBack.addEventListener('click', () => mostrarPasso('apelido'));
+
+  el.termsGo.addEventListener('click', () => {
+    if (!el.termsCheck.checked) return;
+    guardarAceite();
+    entrarNoChat();
+  });
+
+  el.rulesLink.addEventListener('click', () => {
+    montarRegras(el.rulesBody);
+    el.rulesModal.hidden = false;
+  });
+  el.rulesClose.addEventListener('click', () => { el.rulesModal.hidden = true; });
+  el.rulesModal.addEventListener('click', (event) => {
+    if (event.target === el.rulesModal) el.rulesModal.hidden = true;
+  });
 
   // ------------------------------------------------------ foto de perfil
 
@@ -377,8 +469,27 @@
       rejectNick('O apelido precisa de pelo menos 2 letras.');
       return;
     }
-    state.socket.emit('login', { nick, avatar: state.avatar }, (res) => {
+    /**
+     * Confere o apelido ANTES de mandar ler as regras. Seria cruel fazer a
+     * pessoa ler tudo, aceitar, e só então descobrir que o nome está em uso.
+     */
+    state.socket.emit('check-nick', { nick }, (res) => {
+      if (res && res.available === false) {
+        return rejectNick('"' + nick + '" está online agora. Escolhe outro.');
+      }
+      if (jaAceitou()) entrarNoChat();
+      else mostrarPasso('regras');
+    });
+  });
+
+  /** login de verdade, já com o aceite das regras */
+  function entrarNoChat() {
+    const nick = el.nickInput.value.trim();
+    const versao = state.terms ? state.terms.versao : '';
+
+    state.socket.emit('login', { nick, avatar: state.avatar, terms: versao }, (res) => {
       if (!res || !res.ok) {
+        mostrarPasso('apelido');
         return rejectNick(res && res.message ? res.message : 'Não rolou entrar. Tenta de novo.');
       }
       state.me = res.me;
@@ -399,7 +510,7 @@
       // já abre no papo geral
       joinRoom('tema:geral');
     });
-  });
+  }
 
   // ------------------------------------------------------ lista de salas
 
@@ -551,7 +662,16 @@
   function joinRoom(roomId) {
     if (!state.socket || !state.me) return;
     state.socket.emit('join', { roomId }, (res) => {
-      if (!res || !res.ok) return toast(res && res.error ? res.error : 'Não consegui entrar nessa sala.');
+      if (!res || !res.ok) {
+        if (res && res.error === 'terms') {
+          el.app.hidden = true;
+          el.gate.classList.remove('is-out');
+          el.gate.style.display = '';
+          mostrarPasso('regras');
+          return;
+        }
+        return toast(res && res.error ? res.error : 'Não consegui entrar nessa sala.');
+      }
 
       state.currentRoom = res.room.id;
       state.typingUsers.clear();
@@ -728,6 +848,7 @@
    * respondem para quem já é moderador (o servidor confere de novo).
    */
   const COMMAND_HELP = [
+    '/regras — reabre as regras de uso',
     '/mod <senha> — entra como moderador',
     '/mute <apelido> [min] [motivo] — silencia',
     '/ban <apelido> [min] [motivo] — bane e desconecta',
@@ -741,6 +862,12 @@
   function runCommand(raw) {
     const parts = raw.slice(1).split(' ').filter(Boolean);
     const cmd = (parts.shift() || '').toLowerCase();
+
+    if (cmd === 'regras') {
+      montarRegras(el.rulesBody);
+      el.rulesModal.hidden = false;
+      return true;
+    }
 
     if (cmd === 'ajuda' || cmd === 'help') {
       systemNotice(COMMAND_HELP);
@@ -934,7 +1061,8 @@
     if (nick === null) return;
     const clean = nick.trim();
     if (clean.length < 2) return toast('Apelido curto demais.');
-    state.socket.emit('login', { nick: clean, avatar: state.avatar }, (res) => {
+    const versaoRegras = state.terms ? state.terms.versao : '';
+    state.socket.emit('login', { nick: clean, avatar: state.avatar, terms: versaoRegras }, (res) => {
       if (!res || !res.ok) {
         return toast(res && res.message ? res.message : 'Não deu para trocar o apelido.');
       }
@@ -1056,7 +1184,10 @@
       if (!state.me || !state.currentRoom) return;
       // ao reconectar, retoma o mesmo apelido (ele foi liberado quando a conexão caiu)
       const roomId = state.currentRoom;
-      socket.emit('login', { nick: state.me.nick, avatar: state.me.avatar }, (res) => {
+      const versao = state.terms ? state.terms.versao : '';
+      socket.emit('login', {
+        nick: state.me.nick, avatar: state.me.avatar, terms: versao
+      }, (res) => {
         if (res && res.ok) {
           state.me = res.me;
           joinRoom(roomId);
@@ -1090,8 +1221,13 @@
   async function boot() {
     connect();
     try {
-      const res = await fetch('/api/rooms');
-      state.rooms = await res.json();
+      const [salas, regras] = await Promise.all([
+        fetch('/api/rooms').then((r) => r.json()),
+        fetch('/api/terms').then((r) => r.json())
+      ]);
+      state.rooms = salas;
+      state.terms = regras;
+      el.termsAge.textContent = regras.idade;
     } catch (e) {
       toast('Não consegui carregar as salas.');
       return;
