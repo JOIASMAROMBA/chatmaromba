@@ -3,6 +3,17 @@ const URL = process.env.CHAT_URL || 'http://localhost:' + (process.env.PORT || 3
 const MOD_PASS = process.env.MOD_PASSWORD || 'senha-de-teste';
 let TERMS_VERSAO = '';
 
+/**
+ * Sufixo único por execução.
+ *
+ * Sem ele, uma rodada do teste disputava apelido com a anterior: o
+ * apelido é exclusivo enquanto a pessoa está online, então duas execuções
+ * próximas derrubavam uma à outra por motivo nenhum — e o erro aparecia
+ * como se o login estivesse quebrado.
+ */
+const SUF = Math.random().toString(36).slice(2, 6);
+const N = (base) => base + SUF;
+
 let tokenSeq = 0;
 
 /** cada cliente tem seu token, como um navegador diferente teria */
@@ -129,9 +140,9 @@ function wait(ms) {
     /data-room/.test(script) ? 'presente' : 'sem data-room');
 
   // ---------------------------------------------------------------- salas
-  const a = await client('Monstro');
-  const b = await client('Frango');
-  check('login', a.me.nick === 'Monstro' && b.me.nick === 'Frango');
+  const a = await client(N('Monstro'));
+  const b = await client(N('Frango'));
+  check('login', a.me.nick === N('Monstro') && b.me.nick === N('Frango'));
 
   const ja = await join(a.s, 'tema:venenos');
   const jb = await join(b.s, 'tema:venenos');
@@ -149,12 +160,12 @@ function wait(ms) {
   });
   a.s.emit('message', { text: 'bora treinar <script>alert(1)</script>' });
   const msg = await gotMessage;
-  check('mensagem entregue em tempo real', msg.text.includes('bora treinar') && msg.nick === 'Monstro');
+  check('mensagem entregue em tempo real', msg.text.includes('bora treinar') && msg.nick === N('Monstro'));
 
   // quem entra recebe a lista completa; quem já estava recebe só o delta
   const gotDelta = new Promise((resolve) => b.s.on('member-joined', resolve));
   const cSock = await connect();
-  await login(cSock, 'Veterano');
+  await login(cSock, N('Veterano'));
   const snapshot = await new Promise((resolve) => {
     cSock.once('members', resolve);
     cSock.emit('join', { roomId: 'tema:venenos' }, () => {});
@@ -165,7 +176,7 @@ function wait(ms) {
 
   const delta = await gotDelta;
   check('quem já estava recebe só o delta',
-    delta.member && delta.member.nick === 'Veterano' && typeof delta.total === 'number',
+    delta.member && delta.member.nick === N('Veterano') && typeof delta.total === 'number',
     'total=' + (delta && delta.total));
 
   const uf = await join(c.s, 'uf:SP');
@@ -182,7 +193,7 @@ function wait(ms) {
   // falar direto com o socket, como este teste faz, para pular tudo.
   const semAceite = await connect();
   const loginSemAceite = await new Promise((r) =>
-    semAceite.emit('login', { nick: 'SemRegras' }, r));
+    semAceite.emit('login', { nick: N('SemRegras') }, r));
   check('login funciona sem aceitar', loginSemAceite.ok === true);
 
   const entradaBarrada = await join(semAceite, 'tema:geral');
@@ -190,12 +201,12 @@ function wait(ms) {
     entradaBarrada.ok === false && entradaBarrada.error === 'terms', entradaBarrada.message);
 
   const versaoErrada = await new Promise((r) =>
-    semAceite.emit('login', { nick: 'SemRegras', terms: 'versao-inventada' }, r));
+    semAceite.emit('login', { nick: N('SemRegras'), terms: 'versao-inventada' }, r));
   const aindaBarrado = await join(semAceite, 'tema:geral');
   check('aceite de versão errada não vale',
     versaoErrada.ok === true && aindaBarrado.ok === false && aindaBarrado.error === 'terms');
 
-  await new Promise((r) => semAceite.emit('login', { nick: 'SemRegras', terms: TERMS_VERSAO }, r));
+  await new Promise((r) => semAceite.emit('login', { nick: N('SemRegras'), terms: TERMS_VERSAO }, r));
   const liberado = await join(semAceite, 'tema:geral');
   check('com o aceite certo, entra', liberado.ok === true, liberado.room && liberado.room.name);
   semAceite.close();
@@ -203,42 +214,42 @@ function wait(ms) {
   // ---------------------------------------------------------------- apelido exclusivo
   const intruso = await connect();
 
-  const dup = await login(intruso, 'Monstro');
+  const dup = await login(intruso, N('Monstro'));
   check('apelido em uso é recusado', dup.ok === false && dup.error === 'nick-taken', dup.message);
 
-  const dupCase = await login(intruso, 'MONSTRO');
+  const dupCase = await login(intruso, N('MONSTRO'));
   check('bloqueio ignora maiúscula', dupCase.ok === false && dupCase.error === 'nick-taken');
 
-  const dupAccent = await login(intruso, 'Mónstro ');
+  const dupAccent = await login(intruso, N('Mónstro') + ' ');
   check('bloqueio ignora acento e espaço', dupAccent.ok === false && dupAccent.error === 'nick-taken');
 
   const short = await login(intruso, 'x');
   check('apelido curto recusado', short.ok === false && short.error === 'nick-invalid');
 
-  const busy = await checkNick(intruso, 'Monstro');
-  const freeNow = await checkNick(intruso, 'ApelidoQueNinguem');
+  const busy = await checkNick(intruso, N('Monstro'));
+  const freeNow = await checkNick(intruso, N('ApelidoQueNinguem'));
   check('check-nick', busy.available === false && freeNow.available === true);
 
-  const okLogin = await login(intruso, 'Monstro2');
-  check('apelido livre é aceito', okLogin.ok === true && okLogin.me.nick === 'Monstro2');
+  const okLogin = await login(intruso, N('Monstro2'));
+  check('apelido livre é aceito', okLogin.ok === true && okLogin.me.nick === N('Monstro2'));
 
   // trocar de apelido devolve o antigo para o pool
-  await login(intruso, 'Monstro3');
-  const reuseOld = await checkNick(a.s, 'Monstro2');
+  await login(intruso, N('Monstro3'));
+  const reuseOld = await checkNick(a.s, N('Monstro2'));
   check('trocar de nome libera o antigo', reuseOld.available === true);
 
   // manter o próprio apelido não conflita consigo mesmo
-  const keepOwn = await login(intruso, 'Monstro3');
+  const keepOwn = await login(intruso, N('Monstro3'));
   check('reenviar o próprio apelido funciona', keepOwn.ok === true);
 
   // sair libera o apelido
   intruso.close();
   await wait(300);
-  const afterLeave = await checkNick(a.s, 'Monstro3');
+  const afterLeave = await checkNick(a.s, N('Monstro3'));
   check('apelido volta a ficar livre ao sair', afterLeave.available === true);
 
-  const herdeiro = await client('Monstro3');
-  check('outra pessoa assume o apelido liberado', herdeiro.res.ok === true && herdeiro.me.nick === 'Monstro3');
+  const herdeiro = await client(N('Monstro3'));
+  check('outra pessoa assume o apelido liberado', herdeiro.res.ok === true && herdeiro.me.nick === N('Monstro3'));
   herdeiro.s.close();
 
   // troca de nome dentro da sala vira aviso do sistema
@@ -248,7 +259,7 @@ function wait(ms) {
       if (found) resolve(found);
     });
   });
-  await login(a.s, 'MonstroPro');
+  await login(a.s, N('MonstroPro'));
   const notice = await Promise.race([renameNotice, wait(800)]);
   check('sala avisa a troca de apelido', Boolean(notice && notice.text), notice && notice.text);
 
@@ -299,7 +310,7 @@ function wait(ms) {
 
   // vestir a foto: só o dono do token consegue
   const dono = await connect();
-  await new Promise((r) => dono.emit('login', { nick: 'DonoDaFoto', terms: TERMS_VERSAO }, r));
+  await new Promise((r) => dono.emit('login', { nick: N('DonoDaFoto'), terms: TERMS_VERSAO }, r));
   const alheia = await new Promise((r) => dono.emit('set-photo', { id: envioJson.id }, r));
   check('não dá para vestir a foto de outra pessoa', alheia.ok === false, alheia.message);
   dono.close();
@@ -308,7 +319,7 @@ function wait(ms) {
     const s = io(URL, { transports: ['websocket'], auth: { token: tokenFoto } });
     s.on('connect', () => resolve(s));
   });
-  await new Promise((r) => eu.emit('login', { nick: 'ComFoto', terms: TERMS_VERSAO }, r));
+  await new Promise((r) => eu.emit('login', { nick: N('ComFoto'), terms: TERMS_VERSAO }, r));
   const minha = await new Promise((r) => eu.emit('set-photo', { id: envioJson.id }, r));
   check('o dono veste a própria foto', minha.ok === true && minha.photo === envioJson.id);
 
@@ -323,10 +334,10 @@ function wait(ms) {
   check('a mensagem carrega a foto', comFoto.photo === envioJson.id);
 
   // moderador apaga a foto
-  const xerife = await client('XerifeDaFoto');
+  const xerife = await client(N('XerifeDaFoto'));
   await new Promise((r) => xerife.s.emit('mod-login', { password: MOD_PASS }, r));
   const apagou = await new Promise((r) =>
-    xerife.s.emit('mod-action', { action: 'photo', nick: 'ComFoto', reason: 'foto imprópria' }, r));
+    xerife.s.emit('mod-action', { action: 'photo', nick: N('ComFoto'), reason: 'foto imprópria' }, r));
   check('moderador apaga foto', apagou.ok === true, apagou.message);
 
   const sumiu = await fetch(URL + '/avatar/' + envioJson.id);
@@ -335,9 +346,9 @@ function wait(ms) {
   xerife.s.close();
 
   // ---------------------------------------------------------------- perfil
-  const perfilado = await client('Perfilado');
+  const perfilado = await client(N('Perfilado'));
   await join(perfilado.s, 'tema:paquera');
-  const curioso = await client('Curioso');
+  const curioso = await client(N('Curioso'));
   await join(curioso.s, 'tema:paquera');
 
   const vazio = await new Promise((r) => curioso.s.emit('get-profile', { id: perfilado.me.id }, r));
@@ -380,11 +391,11 @@ function wait(ms) {
     JSON.stringify(fraseComLink.perfil.frase));
 
   // moderador limpa o perfil
-  const xerifePerfil = await client('XerifePerfil');
+  const xerifePerfil = await client(N('XerifePerfil'));
   await new Promise((r) => xerifePerfil.s.emit('mod-login', { password: MOD_PASS }, r));
   await new Promise((r) => perfilado.s.emit('set-profile', { instagram: '@spam.aqui' }, r));
   const limpou = await new Promise((r) => xerifePerfil.s.emit('mod-action',
-    { action: 'wipe-profile', nick: 'Perfilado', reason: 'divulgação' }, r));
+    { action: 'wipe-profile', nick: N('Perfilado'), reason: 'divulgação' }, r));
   check('moderador limpa o perfil', limpou.ok === true, limpou.message);
 
   const depoisDaLimpeza = await new Promise((r) =>
@@ -473,7 +484,7 @@ function wait(ms) {
 
   // ---------------------------------------------------------------- moderação
 
-  const modo = await client('Xerife');
+  const modo = await client(N('Xerife'));
   await join(modo.s, 'tema:treta');
 
   const wrongPass = await new Promise((r) => modo.s.emit('mod-login', { password: 'errada' }, r));
@@ -483,21 +494,21 @@ function wait(ms) {
   check('login de moderador', modLogin.ok === true, modLogin.message);
 
   const semPoder = await new Promise((r) =>
-    b.s.emit('mod-action', { action: 'mute', nick: 'MonstroPro' }, r));
+    b.s.emit('mod-action', { action: 'mute', nick: N('MonstroPro') }, r));
   check('usuário comum não modera', semPoder.ok === false, semPoder.message);
 
   // silenciar de verdade
-  const arruaceiro = await client('Arruaceiro');
+  const arruaceiro = await client(N('Arruaceiro'));
   await join(arruaceiro.s, 'tema:treta');
   const muteRes = await new Promise((r) =>
-    modo.s.emit('mod-action', { action: 'mute', nick: 'Arruaceiro', minutes: 5, reason: 'treta demais' }, r));
+    modo.s.emit('mod-action', { action: 'mute', nick: N('Arruaceiro'), minutes: 5, reason: 'treta demais' }, r));
   check('moderador silencia', muteRes.ok === true, muteRes.message);
 
   const blockedSend = await new Promise((r) => arruaceiro.s.emit('message', { text: 'oi' }, r));
   check('silenciado não consegue falar', blockedSend.ok === false && blockedSend.error === 'muted');
 
   const pardonRes = await new Promise((r) =>
-    modo.s.emit('mod-action', { action: 'pardon', nick: 'Arruaceiro' }, r));
+    modo.s.emit('mod-action', { action: 'pardon', nick: N('Arruaceiro') }, r));
   check('moderador libera', pardonRes.ok === true, pardonRes.message);
   const afterPardon = await new Promise((r) => arruaceiro.s.emit('message', { text: 'voltei' }, r));
   check('liberado volta a falar', afterPardon.ok === true);
@@ -511,17 +522,17 @@ function wait(ms) {
 
   // expulsar
   const kickWarn = new Promise((resolve) => arruaceiro.s.on('kicked', resolve));
-  await new Promise((r) => modo.s.emit('mod-action', { action: 'kick', nick: 'Arruaceiro', reason: 'tchau' }, r));
+  await new Promise((r) => modo.s.emit('mod-action', { action: 'kick', nick: N('Arruaceiro'), reason: 'tchau' }, r));
   check('moderador expulsa', Boolean(await Promise.race([kickWarn, wait(800)])));
 
   // denúncia chega ao moderador
   const gotReport = new Promise((resolve) => modo.s.on('report', resolve));
-  b.s.emit('report', { messageId: 'x1', nick: 'MonstroPro', text: 'mensagem feia' });
+  b.s.emit('report', { messageId: 'x1', nick: N('MonstroPro'), text: 'mensagem feia' });
   const report = await Promise.race([gotReport, wait(800)]);
-  check('denúncia chega ao moderador', Boolean(report && report.nick === 'MonstroPro'));
+  check('denúncia chega ao moderador', Boolean(report && report.nick === N('MonstroPro')));
 
   // ---------------------------------------------------------------- filtro automático
-  const spammer = await client('Spammer');
+  const spammer = await client(N('Spammer'));
   await join(spammer.s, 'tema:treinodieta');
   let autoMuted = null;
   for (let i = 0; i < 5; i += 1) {
@@ -530,7 +541,7 @@ function wait(ms) {
   }
   check('filtro silencia mensagem repetida', Boolean(autoMuted));
 
-  const linkSpammer = await client('LinkSpam');
+  const linkSpammer = await client(N('LinkSpam'));
   await join(linkSpammer.s, 'tema:treinodieta');
   const muitoLink = await new Promise((r) =>
     linkSpammer.s.emit('message', { text: 'http://a.com http://b.com http://c.com' }, r));
