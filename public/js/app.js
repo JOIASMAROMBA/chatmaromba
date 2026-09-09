@@ -912,13 +912,13 @@
     if (!temAlgo) { el.trendList.innerHTML = ''; return; }
 
     el.trendList.innerHTML = lista.map((item, i) => (
-      '<li><button class=trend-item data-room= + escapeHtml(item.salaId) + >'
-      + '<span class=trend-pos>' + (i + 1) + '</span>'
-      + '<span class=trend-body>'
-      +   '<span class=trend-termo>' + escapeHtml(item.termo) + '</span>'
-      +   '<span class=trend-sala>' + item.salaIcone + ' ' + escapeHtml(item.salaNome) + '</span>'
+      '<li><button type="button" class="trend-item" data-room="' + escapeHtml(item.salaId) + '">'
+      + '<span class="trend-pos">' + (i + 1) + '</span>'
+      + '<span class="trend-body">'
+      +   '<span class="trend-termo">' + escapeHtml(item.termo) + '</span>'
+      +   '<span class="trend-sala">Sala <strong>' + escapeHtml(item.salaNome) + '</strong></span>'
       + '</span>'
-      + '<span class=trend-gente>' + item.pessoas + '</span>'
+      + '<span class="trend-gente">' + item.pessoas + '</span>'
       + '</button></li>'
     )).join('');
   }

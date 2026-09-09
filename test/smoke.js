@@ -84,6 +84,26 @@ function wait(ms) {
   check('página tem todos os elementos que o script usa',
     ausentes.length === 0, ausentes.length ? 'faltando: ' + ausentes.join(', ') : procurados.length + ' conferidos');
 
+  /**
+   * Atributo HTML sem aspas dentro do script.
+   *
+   * Existe porque um data-room ficou escrito como `data-room= + valor + `,
+   * virando texto literal em vez de receber o id. O botão continuava
+   * bonito na tela e simplesmente não levava a lugar nenhum.
+   */
+  const semAspas = script.split('\n')
+    .map((linha, i) => ({ n: i + 1, linha: linha.trim() }))
+    .filter(({ linha }) =>
+      /(class|data-[a-z-]+|src|href|style|type|alt)=[a-zA-Z0-9$]/.test(linha) && linha.includes("'"));
+  check('atributos HTML do script estão entre aspas',
+    semAspas.length === 0,
+    semAspas.length ? 'linha ' + semAspas[0].n + ': ' + semAspas[0].linha.slice(0, 70) : 'ok');
+
+  /** o top 5 precisa levar para a sala — sem isso ele é só enfeite */
+  check('itens do ranking carregam a sala de destino',
+    /data-room="'\s*\+\s*escapeHtml\(item\.salaId\)/.test(script),
+    /data-room/.test(script) ? 'presente' : 'sem data-room');
+
   // ---------------------------------------------------------------- salas
   const a = await client('Monstro');
   const b = await client('Frango');
