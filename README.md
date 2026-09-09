@@ -61,6 +61,9 @@ principais cidades. Para incluir mais cidades, é só adicionar na lista em
 - **Apelido exclusivo enquanto a pessoa está online**: ninguém mais consegue usar o mesmo nome
   ao mesmo tempo. A comparação ignora acento, maiúscula e espaço (`Monstro` = `mónstro` = `MONSTRO`).
   Quando a pessoa sai, o apelido é liberado na hora para quem quiser
+- **Cartão de visita**: clicar na foto de alguém abre cidade, idade, uma frase e o Instagram.
+  Campo em branco simplesmente não aparece — quem não preencheu nada continua sendo só foto e
+  apelido. O link do Instagram passa por conferência de domínio de verdade, não por `includes`
 - Contador de gente online por sala, ao vivo
 - Busca por tema, estado ou cidade
 - Responder mensagem, indicador de "digitando", seletor de emoji
@@ -106,6 +109,7 @@ No chat, digite os comandos no próprio campo de mensagem:
 | `/ban <apelido> [min] [motivo]` | bane e desconecta (padrão 60 min) |
 | `/kick <apelido> [motivo]` | expulsa, mas pode voltar |
 | `/foto <apelido> [motivo]` | apaga a foto de perfil da pessoa |
+| `/perfil <apelido> [motivo]` | limpa cidade, idade, frase e Instagram |
 | `/liberar <apelido>` | tira o castigo |
 | `/limpar` | apaga o histórico da sala |
 | `/lista` | castigos e denúncias em aberto |

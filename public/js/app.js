@@ -30,6 +30,19 @@
     rulesModal: $('#rules-modal'),
     rulesBody: $('#rules-body'),
     rulesClose: $('#rules-close'),
+    cardModal: $('#card-modal'),
+    cardVisita: $('#card-visita'),
+    profileModal: $('#profile-modal'),
+    profileForm: $('#profile-form'),
+    profileClose: $('#profile-close'),
+    profilePhotoBtn: $('#profile-photo-btn'),
+    profNick: $('#prof-nick'),
+    profCidade: $('#prof-cidade'),
+    profIdade: $('#prof-idade'),
+    profFrase: $('#prof-frase'),
+    profInsta: $('#prof-insta'),
+    profFraseConta: $('#prof-frase-conta'),
+    profInstaAviso: $('#prof-insta-aviso'),
 
     app: $('#app'),
     sidebar: $('#sidebar'),
@@ -44,6 +57,7 @@
     meAvatar: $('#me-avatar'),
     meNick: $('#me-nick'),
     editMe: $('#edit-me'),
+    meCard: $('#me-card'),
 
     roomIcon: $('#room-icon'),
     roomName: $('#room-name'),
@@ -88,6 +102,7 @@
     photo: null,
     rooms: { themes: [], states: [] },
     terms: null,
+    profile: null,
     roomIndex: new Map(),   // id -> { id, name, icon, tagline, kind }
     currentRoom: null,
     counts: {},
@@ -231,6 +246,161 @@
   el.rulesModal.addEventListener('click', (event) => {
     if (event.target === el.rulesModal) el.rulesModal.hidden = true;
   });
+
+  // ------------------------------------------------------ cartão de visita
+
+  /**
+   * Cartão que aparece ao clicar na foto de alguém.
+   *
+   * A regra que manda aqui: campo em branco não vira nada na tela. Nada de
+   * "Cidade: não informada" — isso é ruído, e faz o cartão de quem não
+   * preencheu parecer um formulário incompleto em vez de uma escolha.
+   */
+  function montarCartao(p) {
+    const retrato = p.photo
+      ? '<span class="card-foto has-photo"><img src="/avatar/' + encodeURIComponent(p.photo) + '" alt="" /></span>'
+      : '<span class="card-foto">' + escapeHtml(p.avatar || '💪') + '</span>';
+
+    const linhas = [];
+    if (p.cidade) linhas.push('<li><span class="card-icone">📍</span>' + escapeHtml(p.cidade) + '</li>');
+    if (p.idade) linhas.push('<li><span class="card-icone">🎂</span>' + escapeHtml(String(p.idade)) + ' anos</li>');
+    if (p.instagram) {
+      linhas.push(
+        '<li><span class="card-icone">📸</span>'
+        + '<a href="' + escapeHtml(p.instagram) + '" target="_blank" rel="noopener noreferrer nofollow">@'
+        + escapeHtml(p.instagramHandle) + '</a></li>'
+      );
+    }
+
+    // quem não preencheu nada tem direito a um cartão que não parece defeito
+    const frase = p.frase
+      ? escapeHtml(p.frase)
+      : (p.preenchido ? '' : 'Ainda não contou nada por aqui.');
+
+    return (
+      '<button class="card-fechar" id="card-fechar" aria-label="Fechar">✕</button>'
+      + '<div class="card-topo">'
+      +   retrato
+      +   '<div class="card-info">'
+      +     '<h3 style="color:' + (p.color || '#fff') + '">' + escapeHtml(p.nick) + '</h3>'
+      +     (p.mod ? '<span class="mod-badge">MOD</span>' : '')
+      +     (frase ? '<p class="card-frase">' + frase + '</p>' : '')
+      +     (linhas.length ? '<ul class="card-lista">' + linhas.join('') + '</ul>' : '')
+      +   '</div>'
+      + '</div>'
+    );
+  }
+
+  function abrirCartao(socketId) {
+    if (!socketId || !state.socket) return;
+    state.socket.emit('get-profile', { id: socketId }, (res) => {
+      if (!res || !res.ok) return toast(res && res.message ? res.message : 'Não consegui abrir o perfil.');
+      el.cardVisita.innerHTML = montarCartao(res.perfil);
+      el.cardModal.hidden = false;
+      const fechar = document.getElementById('card-fechar');
+      if (fechar) fechar.addEventListener('click', () => { el.cardModal.hidden = true; });
+    });
+  }
+
+  el.cardModal.addEventListener('click', (event) => {
+    if (event.target === el.cardModal) el.cardModal.hidden = true;
+  });
+
+  // ------------------------------------------------------ meu perfil
+
+  function abrirEditorPerfil() {
+    const p = state.profile || {};
+    el.profNick.value = state.me ? state.me.nick : '';
+    el.profCidade.value = p.cidade || '';
+    el.profIdade.value = p.idade || '';
+    el.profFrase.value = p.frase || '';
+    el.profInsta.value = p.instagramHandle ? '@' + p.instagramHandle : '';
+    el.profFraseConta.textContent = (el.profFrase.value.length) + '/90';
+    el.profInstaAviso.textContent = 'Só aceita link ou @ do Instagram.';
+    el.profInstaAviso.className = 'field-help';
+    el.profileModal.hidden = false;
+    el.profNick.focus();
+  }
+
+  el.profFrase.addEventListener('input', () => {
+    el.profFraseConta.textContent = el.profFrase.value.length + '/90';
+  });
+
+  el.profileClose.addEventListener('click', () => { el.profileModal.hidden = true; });
+  el.profileModal.addEventListener('click', (event) => {
+    if (event.target === el.profileModal) el.profileModal.hidden = true;
+  });
+
+  el.profilePhotoBtn.addEventListener('click', () => el.photoInput.click());
+
+  el.profileForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+
+    const novoNick = el.profNick.value.trim();
+    const trocouNick = state.me && novoNick && novoNick !== state.me.nick;
+
+    const salvarPerfil = () => {
+      state.socket.emit('set-profile', {
+        cidade: el.profCidade.value,
+        idade: el.profIdade.value,
+        frase: el.profFrase.value,
+        instagram: el.profInsta.value
+      }, (res) => {
+        if (!res || !res.ok) {
+          el.profInstaAviso.textContent = res && res.message ? res.message : 'Não deu para salvar.';
+          el.profInstaAviso.className = 'field-help is-erro';
+          return;
+        }
+        state.profile = res.perfil;
+        guardarPerfilLocal();
+        el.profileModal.hidden = true;
+        toast('Perfil salvo.');
+      });
+    };
+
+    if (trocouNick) {
+      const versaoRegras = state.terms ? state.terms.versao : '';
+      state.socket.emit('login', {
+        nick: novoNick, avatar: state.avatar, terms: versaoRegras
+      }, (res) => {
+        if (!res || !res.ok) {
+          el.profInstaAviso.textContent = res && res.message ? res.message : 'Apelido indisponível.';
+          el.profInstaAviso.className = 'field-help is-erro';
+          return;
+        }
+        state.me = res.me;
+        el.meNick.textContent = res.me.nick;
+        pintarMeCard();
+        try { localStorage.setItem('cm_nick', res.me.nick); } catch (e) { /* ignore */ }
+        salvarPerfil();
+      });
+    } else {
+      salvarPerfil();
+    }
+  });
+
+  function guardarPerfilLocal() {
+    try { localStorage.setItem('cm_profile', JSON.stringify(state.profile)); } catch (e) { /* ignore */ }
+  }
+
+  function recuperarPerfilLocal() {
+    try {
+      const bruto = localStorage.getItem('cm_profile');
+      if (bruto) state.profile = JSON.parse(bruto);
+    } catch (e) { /* ignore */ }
+  }
+
+  /** reenvia o perfil ao servidor depois de entrar ou reconectar */
+  function reenviarPerfil() {
+    const p = state.profile;
+    if (!p || !(p.cidade || p.idade || p.frase || p.instagram)) return;
+    state.socket.emit('set-profile', {
+      cidade: p.cidade, idade: p.idade, frase: p.frase,
+      instagram: p.instagramHandle || p.instagram
+    }, (res) => {
+      if (res && res.ok) state.profile = res.perfil;
+    });
+  }
 
   // ------------------------------------------------------ foto de perfil
 
@@ -522,6 +692,7 @@
       el.meNick.textContent = res.me.nick;
       pintarMeCard();
       if (state.photo) aplicarFoto(state.photo);
+      reenviarPerfil();
       try {
         localStorage.setItem('cm_nick', res.me.nick);
         localStorage.setItem('cm_avatar', res.me.avatar);
@@ -789,6 +960,7 @@
       node.dataset.id = msg.id;
       node.dataset.nick = msg.nick;
       if (msg.photo) node.dataset.photo = msg.photo;
+      if (msg.authorId) node.dataset.author = msg.authorId;
       node.dataset.text = msg.text;
 
       const reply = msg.replyTo
@@ -820,6 +992,11 @@
   el.messages.addEventListener('click', (event) => {
     const msg = event.target.closest('.msg');
     if (!msg) return;
+
+    if (event.target.closest('.msg-avatar')) {
+      abrirCartao(msg.dataset.author);
+      return;
+    }
 
     if (event.target.closest('.reply-btn')) {
       setReply(msg.dataset.nick, msg.dataset.text);
@@ -880,6 +1057,7 @@
     '/ban <apelido> [min] [motivo] — bane e desconecta',
     '/kick <apelido> [motivo] — expulsa (volta se quiser)',
     '/foto <apelido> [motivo] — apaga a foto de perfil',
+    '/perfil <apelido> [motivo] — limpa cidade, idade, frase e Instagram',
     '/liberar <apelido> — tira o castigo',
     '/limpar — apaga o histórico da sala',
     '/lista — castigos e denúncias em aberto'
@@ -916,7 +1094,7 @@
       return true;
     }
 
-    const actions = { mute: 'mute', ban: 'ban', kick: 'kick', liberar: 'pardon', foto: 'photo' };
+    const actions = { mute: 'mute', ban: 'ban', kick: 'kick', liberar: 'pardon', foto: 'photo', perfil: 'wipe-profile' };
     if (actions[cmd]) {
       const nick = parts.shift();
       if (!nick) { systemNotice('Uso: /' + cmd + ' <apelido> [minutos] [motivo]'); return true; }
@@ -1047,7 +1225,7 @@
       .map((m) => {
         const you = state.me && m.id === state.me.id ? '<span class="tag-you">você</span>' : '';
         return (
-          '<div class="member">' +
+          '<div class="member" data-member="' + m.id + '">' +
             retratoHtml(m, 'member-avatar') +
             '<span class="member-nick" style="color:' + (m.color || '#fff') + '">' + escapeHtml(m.nick) + '</span>' +
             you +
@@ -1069,6 +1247,11 @@
     renderMembers(list, data.total);
   }
 
+  el.memberList.addEventListener('click', (event) => {
+    const linha = event.target.closest('[data-member]');
+    if (linha) abrirCartao(linha.dataset.member);
+  });
+
   el.toggleMembers.addEventListener('click', () => el.app.classList.toggle('show-members'));
   el.closeMembers.addEventListener('click', () => el.app.classList.remove('show-members'));
 
@@ -1082,23 +1265,11 @@
   el.closeSidebar.addEventListener('click', () => setSidebar(false));
   el.scrim.addEventListener('click', () => setSidebar(false));
 
-  el.editMe.addEventListener('click', () => {
-    const nick = prompt('Novo apelido:', state.me ? state.me.nick : '');
-    if (nick === null) return;
-    const clean = nick.trim();
-    if (clean.length < 2) return toast('Apelido curto demais.');
-    const versaoRegras = state.terms ? state.terms.versao : '';
-    state.socket.emit('login', { nick: clean, avatar: state.avatar, terms: versaoRegras }, (res) => {
-      if (!res || !res.ok) {
-        return toast(res && res.message ? res.message : 'Não deu para trocar o apelido.');
-      }
-      state.me = res.me;
-      el.meNick.textContent = res.me.nick;
-      pintarMeCard();
-      try { localStorage.setItem('cm_nick', res.me.nick); } catch (e) { /* ignore */ }
-      toast('Agora você é ' + res.me.nick + '.');
-    });
+  el.editMe.addEventListener('click', abrirEditorPerfil);
+  el.meCard.addEventListener('click', (event) => {
+    if (!event.target.closest('#edit-me')) abrirEditorPerfil();
   });
+
 
   // ------------------------------------------------------ socket
 
@@ -1190,6 +1361,12 @@
       renderTyping();
     });
 
+    socket.on('profile-wiped', (data) => {
+      state.profile = null;
+      try { localStorage.removeItem('cm_profile'); } catch (e) { /* ignore */ }
+      toast('Seu perfil foi limpo pela moderação. Motivo: ' + data.reason);
+    });
+
     socket.on('photo-removed', (data) => {
       state.photo = null;
       if (state.me) state.me.photo = null;
@@ -1216,6 +1393,7 @@
       }, (res) => {
         if (res && res.ok) {
           state.me = res.me;
+          reenviarPerfil();
           joinRoom(roomId);
           return;
         }
@@ -1230,6 +1408,7 @@
       const nick = localStorage.getItem('cm_nick');
       const avatar = localStorage.getItem('cm_avatar');
       if (nick) el.nickInput.value = nick;
+      recuperarPerfilLocal();
       const foto = localStorage.getItem('cm_photo');
       if (foto) state.photo = foto;
       if (avatar && state.avatars.includes(avatar)) {

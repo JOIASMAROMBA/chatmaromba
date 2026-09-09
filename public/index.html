@@ -203,6 +203,57 @@
 
 <div class="toast" id="toast" hidden></div>
 
+<!-- cartão de visita de quem está no chat -->
+<div class="modal" id="card-modal" hidden>
+  <div class="card-visita" id="card-visita"></div>
+</div>
+
+<!-- editor do próprio perfil -->
+<div class="modal" id="profile-modal" hidden>
+  <div class="modal-card modal-card-sm">
+    <header class="modal-head">
+      <h3>Meu perfil</h3>
+      <button class="icon-btn" id="profile-close" aria-label="Fechar">✕</button>
+    </header>
+
+    <p class="modal-hint">Tudo aqui é opcional. O que você deixar em branco simplesmente
+      não aparece para os outros.</p>
+
+    <form id="profile-form" autocomplete="off">
+      <label class="field-sm">
+        <span>Apelido</span>
+        <input id="prof-nick" type="text" maxlength="18" spellcheck="false" />
+      </label>
+
+      <div class="field-pair">
+        <label class="field-sm">
+          <span>Cidade</span>
+          <input id="prof-cidade" type="text" maxlength="32" placeholder="Ex: Belo Horizonte" />
+        </label>
+        <label class="field-sm field-idade">
+          <span>Idade</span>
+          <input id="prof-idade" type="number" min="18" max="99" placeholder="—" />
+        </label>
+      </div>
+
+      <label class="field-sm">
+        <span>Uma frase sua</span>
+        <input id="prof-frase" type="text" maxlength="90" placeholder="Ex: bulking eterno, cardio nunca" />
+        <small class="field-help" id="prof-frase-conta">0/90</small>
+      </label>
+
+      <label class="field-sm">
+        <span>Instagram</span>
+        <input id="prof-insta" type="text" maxlength="120" placeholder="@seuperfil" spellcheck="false" />
+        <small class="field-help" id="prof-insta-aviso">Só aceita link ou @ do Instagram.</small>
+      </label>
+
+      <button class="btn-primary" type="submit">Salvar perfil</button>
+      <button class="btn-link" type="button" id="profile-photo-btn">📷 trocar minha foto</button>
+    </form>
+  </div>
+</div>
+
 <!-- regras abertas de dentro do chat -->
 <div class="modal" id="rules-modal" hidden>
   <div class="modal-card">

@@ -372,6 +372,139 @@ button, input { font: inherit; color: inherit; }
 .modal-head h3 { font-size: 16px; }
 .modal-card .terms-body { max-height: 70vh; }
 
+/* ---- cartão de visita ---- */
+
+.card-visita {
+  position: relative;
+  width: min(400px, 100%);
+  padding: 22px;
+  border: 1px solid var(--line-strong);
+  border-radius: 20px;
+  background: linear-gradient(155deg, rgba(34, 34, 56, 0.96), rgba(14, 14, 24, 0.97));
+  box-shadow: var(--shadow);
+  animation: pop-in 0.26s cubic-bezier(0.2, 0.9, 0.25, 1.1);
+}
+
+.card-fechar {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--txt-dim);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.card-fechar:hover { background: rgba(255, 255, 255, 0.15); color: var(--txt); }
+
+.card-topo { display: flex; align-items: flex-start; gap: 16px; }
+
+.card-foto {
+  display: grid;
+  place-items: center;
+  flex: 0 0 92px;
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  overflow: hidden;
+  font-size: 42px;
+  background: var(--grad);
+  box-shadow: 0 8px 24px rgba(124, 92, 255, 0.42);
+}
+.card-foto.has-photo { background: rgba(255, 255, 255, 0.06); }
+.card-foto img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.card-info { flex: 1; min-width: 0; padding-top: 4px; }
+.card-info h3 {
+  display: inline-block;
+  font-size: 18px;
+  margin-right: 7px;
+  word-break: break-word;
+}
+.card-frase {
+  margin: 7px 0 0;
+  font-size: 13.2px;
+  line-height: 1.5;
+  color: var(--txt-dim);
+  font-style: italic;
+  word-break: break-word;
+}
+
+.card-lista {
+  margin: 12px 0 0;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--line);
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.card-lista li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13.2px;
+  color: #e2e2ee;
+  word-break: break-word;
+}
+.card-icone { font-size: 14px; opacity: 0.9; width: 18px; text-align: center; flex: 0 0 auto; }
+.card-lista a { color: var(--cyan); text-decoration: none; }
+.card-lista a:hover { text-decoration: underline; }
+
+/* a foto no chat vira clicável */
+.msg-avatar, .member { cursor: pointer; }
+.msg-avatar { transition: transform 0.15s; }
+.msg-avatar:hover { transform: scale(1.08); }
+
+/* ---- editor do próprio perfil ---- */
+
+.modal-card-sm { width: min(400px, 100%); }
+.modal-hint { margin: 0 0 14px; font-size: 12.2px; line-height: 1.5; color: var(--txt-faint); }
+
+.field-sm { display: block; margin-bottom: 12px; }
+.field-sm > span {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--txt-dim);
+}
+.field-sm input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.field-sm input:focus {
+  border-color: var(--violet);
+  box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.16);
+}
+.field-sm input::placeholder { color: var(--txt-faint); }
+
+.field-pair { display: flex; gap: 10px; }
+.field-pair .field-sm { flex: 1; }
+.field-idade { flex: 0 0 88px !important; }
+
+.field-help {
+  display: block;
+  margin-top: 5px;
+  font-size: 11px;
+  color: var(--txt-faint);
+}
+.field-help.is-erro { color: #ff7a8a; }
+
+.me-card { cursor: pointer; }
+
 /* ---- foto de perfil ---- */
 
 .field-label.sub {

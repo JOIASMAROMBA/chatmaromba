@@ -267,6 +267,72 @@ function wait(ms) {
   eu.close();
   xerife.s.close();
 
+  // ---------------------------------------------------------------- perfil
+  const perfilado = await client('Perfilado');
+  await join(perfilado.s, 'tema:paquera');
+  const curioso = await client('Curioso');
+  await join(curioso.s, 'tema:paquera');
+
+  const vazio = await new Promise((r) => curioso.s.emit('get-profile', { id: perfilado.me.id }, r));
+  check('perfil em branco não inventa informação',
+    vazio.ok && vazio.perfil.preenchido === false
+      && !vazio.perfil.cidade && !vazio.perfil.idade && !vazio.perfil.instagram,
+    'nick=' + vazio.perfil.nick);
+
+  const salvo = await new Promise((r) => perfilado.s.emit('set-profile', {
+    cidade: 'Belo Horizonte', idade: 29, frase: 'bulking eterno', instagram: '@monstro.bh'
+  }, r));
+  check('salva o perfil', salvo.ok === true && salvo.perfil.instagram === 'https://instagram.com/monstro.bh',
+    salvo.perfil && salvo.perfil.instagram);
+
+  const cheio = await new Promise((r) => curioso.s.emit('get-profile', { id: perfilado.me.id }, r));
+  check('terceiro enxerga o perfil preenchido',
+    cheio.perfil.cidade === 'Belo Horizonte' && cheio.perfil.idade === 29
+      && cheio.perfil.preenchido === true);
+
+  // link falso: o truque clássico é um domínio que só PARECE ser do Instagram
+  const falso = await new Promise((r) => perfilado.s.emit('set-profile', {
+    instagram: 'https://instagram.com.site-falso.com/eu'
+  }, r));
+  check('link que só parece do Instagram é recusado', falso.ok === false, falso.message);
+
+  const outroSite = await new Promise((r) => perfilado.s.emit('set-profile', {
+    instagram: 'https://site-falso.com/instagram.com/eu'
+  }, r));
+  check('link de outro site é recusado', outroSite.ok === false, outroSite.message);
+
+  const idadeInvalida = await new Promise((r) => perfilado.s.emit('set-profile', { idade: 12 }, r));
+  check('idade abaixo de 18 é descartada',
+    idadeInvalida.ok === true && idadeInvalida.perfil.idade === null);
+
+  const fraseComLink = await new Promise((r) => perfilado.s.emit('set-profile', {
+    frase: 'segue meu site loja.com.br agora'
+  }, r));
+  check('link na frase é removido',
+    fraseComLink.ok === true && !/loja\.com\.br/.test(fraseComLink.perfil.frase || ''),
+    JSON.stringify(fraseComLink.perfil.frase));
+
+  // moderador limpa o perfil
+  const xerifePerfil = await client('XerifePerfil');
+  await new Promise((r) => xerifePerfil.s.emit('mod-login', { password: MOD_PASS }, r));
+  await new Promise((r) => perfilado.s.emit('set-profile', { instagram: '@spam.aqui' }, r));
+  const limpou = await new Promise((r) => xerifePerfil.s.emit('mod-action',
+    { action: 'wipe-profile', nick: 'Perfilado', reason: 'divulgação' }, r));
+  check('moderador limpa o perfil', limpou.ok === true, limpou.message);
+
+  const depoisDaLimpeza = await new Promise((r) =>
+    curioso.s.emit('get-profile', { id: perfilado.me.id }, r));
+  check('perfil limpo some para todo mundo',
+    depoisDaLimpeza.perfil.preenchido === false && !depoisDaLimpeza.perfil.instagram);
+
+  perfilado.s.close();
+  const sumiu2 = await new Promise((r) => {
+    setTimeout(() => curioso.s.emit('get-profile', { id: perfilado.me.id }, r), 300);
+  });
+  check('perfil de quem saiu não é servido', sumiu2.ok === false, sumiu2.message);
+  curioso.s.close();
+  xerifePerfil.s.close();
+
   // ---------------------------------------------------------------- anti-flood
   let flooded = false;
   a.s.on('warning', () => { flooded = true; });

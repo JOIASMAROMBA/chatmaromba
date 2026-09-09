@@ -46,7 +46,10 @@ function connectOne(index) {
       s.emit('login', { nick: 'Carga' + index, terms: TERMS }, (res) => {
         if (!res || !res.ok) { errors += 1; return finish(false); }
         s.emit('join', { roomId: ROOM }, (res) => {
-          s.__room = res && res.room ? res.room.id : ROOM;
+          // sem isso, um join recusado passaria despercebido e o teste
+          // mediria "100% de perda" em vez de apontar a causa
+          if (!res || !res.ok) { errors += 1; return finish(false); }
+          s.__room = res.room ? res.room.id : ROOM;
           roomSizes[s.__room] = (roomSizes[s.__room] || 0) + 1;
           sockets.push(s);
           // mede a latência: o texto carrega o instante do envio
@@ -64,6 +67,10 @@ function connectOne(index) {
 }
 
 (async () => {
+  // sem o aceite das regras o servidor recusa a entrada nas salas
+  TERMS = await fetch(URL + '/api/terms').then((r) => r.json()).then((t) => t.versao).catch(() => '');
+  if (!TERMS) throw new Error('não consegui ler a versão das regras em ' + URL);
+
   console.log(`\nAlvo: ${URL}  ·  sala: ${ROOM}`);
   console.log(`Abrindo ${CLIENTS} conexões...`);
 

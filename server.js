@@ -14,6 +14,7 @@ const mod = require('./shared/moderation');
 const guard = require('./shared/guard');
 const photos = require('./shared/photos');
 const terms = require('./shared/terms');
+const profile = require('./shared/profile');
 
 const PORT = process.env.PORT || 3000;
 const HISTORY_SIZE = 80;          // mensagens guardadas por sala
@@ -477,6 +478,7 @@ io.on('connection', (socket) => {
     memory: mod.createMemory(),
     photo: null,
     acceptedTerms: false,
+    profile: profile.vazio(),
     isMod: false,
     joined: false
   };
@@ -590,6 +592,51 @@ io.on('connection', (socket) => {
       }
     });
   }
+
+  socket.on('set-profile', (payload = {}, ack) => {
+    const reply = (data) => { if (typeof ack === 'function') ack(data); };
+    if (!within('set-profile', ack)) return;
+
+    const resultado = profile.montar(payload);
+    if (!resultado.ok) return reply({ ok: false, message: resultado.motivo });
+
+    user.profile = resultado.perfil;
+    reply({ ok: true, perfil: user.profile });
+  });
+
+  /**
+   * Cartão de visita de alguém da sala. Vai sob demanda, no clique, e não
+   * junto de cada mensagem: repetir cidade, idade e frase em toda linha
+   * multiplicaria a banda sem ninguém pedir.
+   */
+  socket.on('get-profile', (payload = {}, ack) => {
+    const reply = (data) => { if (typeof ack === 'function') ack(data); };
+    if (!within('get-profile', ack)) return;
+
+    const alvo = users.get(String(payload.id || ''));
+    if (!alvo || !alvo.joined) {
+      return reply({ ok: false, message: 'Essa pessoa saiu do chat.' });
+    }
+
+    const perfil = alvo.profile || profile.vazio();
+    reply({
+      ok: true,
+      perfil: {
+        nick: alvo.nick,
+        avatar: alvo.avatar,
+        color: alvo.color,
+        photo: alvo.photo || null,
+        mod: alvo.isMod || false,
+        // só vai o que a pessoa realmente preencheu
+        cidade: perfil.cidade,
+        idade: perfil.idade,
+        frase: perfil.frase,
+        instagram: perfil.instagram,
+        instagramHandle: perfil.instagramHandle,
+        preenchido: profile.temAlgo(perfil)
+      }
+    });
+  });
 
   socket.on('join', (payload = {}, ack) => {
     const reply = (data) => { if (typeof ack === 'function') ack(data); };
@@ -831,6 +878,21 @@ io.on('connection', (socket) => {
       console.log(`  [mod] ${user.nick} apagou a foto de ${alvo.user.nick}: ${reason}`);
       notifyMods('mod-log', { by: user.nick, action: 'photo', nick: alvo.user.nick, reason });
       return reply({ ok: true, message: `Foto de ${alvo.user.nick} apagada.` });
+    }
+
+    /**
+     * Limpar o perfil de alguém. O campo do Instagram é o alvo mais provável
+     * de quem quer divulgar, então precisa ter remédio rápido.
+     */
+    if (action === 'wipe-profile') {
+      const alvo = findUserByNick(payload.nick);
+      if (!alvo) return reply({ ok: false, message: `Não achei "${payload.nick}" online.` });
+
+      alvo.user.profile = profile.vazio();
+      alvo.socket.emit('profile-wiped', { reason });
+      console.log(`  [mod] ${user.nick} limpou o perfil de ${alvo.user.nick}: ${reason}`);
+      notifyMods('mod-log', { by: user.nick, action: 'wipe-profile', nick: alvo.user.nick, reason });
+      return reply({ ok: true, message: `Perfil de ${alvo.user.nick} limpo.` });
     }
 
     if (action === 'pardon') {

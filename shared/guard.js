@@ -80,6 +80,8 @@ const BUDGETS = {
   login: [12, 60_000],
   'mod-action': [60, 60_000],
   'set-photo': [10, 300_000],
+  'set-profile': [20, 300_000],
+  'get-profile': [90, 60_000],
   'mod-login': [5, 600_000]      // senha: 5 tentativas a cada 10 minutos
 };
 
