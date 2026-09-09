@@ -888,6 +888,10 @@
 
     socket.on('warning', (data) => toast(data.text));
 
+    socket.on('overloaded', (data) => {
+      showBlocked('Chat lotado', data.text, null);
+    });
+
     socket.on('disconnect', () => toast('Conexão caiu. Reconectando...'));
     socket.on('connect', () => {
       if (!state.me || !state.currentRoom) return;

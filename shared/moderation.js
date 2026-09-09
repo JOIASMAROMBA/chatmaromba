@@ -11,6 +11,7 @@
  */
 
 const crypto = require('crypto');
+const guard = require('./guard');
 
 const SALT = process.env.IP_SALT || crypto.randomBytes(16).toString('hex');
 
@@ -48,10 +49,7 @@ function hash(value) {
 function identify(socket) {
   const auth = socket.handshake.auth || {};
   const token = typeof auth.token === 'string' && auth.token.length >= 8 ? auth.token : null;
-  const forwarded = socket.handshake.headers['x-forwarded-for'];
-  const ip = (forwarded ? String(forwarded).split(',')[0] : '').trim()
-    || socket.handshake.address
-    || 'desconhecido';
+  const ip = guard.clientIp(socket.handshake.headers, socket.handshake.address);
 
   return {
     tokenKey: token ? hash('t:' + token) : null,

@@ -106,6 +106,40 @@ Funciona sem moderador acordado: silencia quem repete a mesma mensagem 3 vezes s
 silencia quem insiste em link (4 mensagens com link em 30s), barra mais de 2 links numa
 mensagem só, encolhe `aaaaaaaa` e abaixa o TEXTO TODO EM CAIXA ALTA em vez de bloquear.
 
+## Segurança
+
+Rode a sonda de abuso com o servidor de pé — ela tenta o que um atacante tentaria,
+e cada linha passa quando o servidor **se defende**:
+
+```bash
+MOD_PASSWORD=segredo PORT=3555 MAX_SOCKETS_PER_IP=20 node server.js
+CHAT_URL=http://localhost:3555 MOD_PASSWORD=segredo node test/attack.js
+```
+
+| Ataque | Defesa |
+|---|---|
+| Salas fantasma (`tema:geral~999999`) | id de sala validado: tema tem que existir e a divisão tem que estar na faixa |
+| Força bruta na senha do moderador | 5 tentativas a cada 10 min por conexão |
+| Evento de 900 KB | `maxHttpBufferSize` de 16 KB — a conexão cai |
+| Enxurrada de "digitando" | 60 a cada 10 s; o excesso é ignorado |
+| Troca de sala em looping | 25 entradas por minuto |
+| Reservar apelidos em massa | teto de conexões por IP e global |
+| **Trocar de IP mentindo o `X-Forwarded-For`** | cabeçalho só vale atrás de proxy conhecido, e lendo a ponta que o proxy escreveu |
+| Enxurrada de requisições HTTP | balde de fichas por IP, responde 429 |
+| XSS na mensagem | escape de HTML + `Content-Security-Policy` travando script de fora |
+| Impressão digital do servidor | `X-Powered-By` desligado |
+
+O `/health` mostra os contadores de recusa. Se `recusas.porIp` subir com o chat
+funcionando normal, o limite está apertado demais e está barrando gente de verdade —
+**suba o `MAX_SOCKETS_PER_IP`**, não deixe usuário na porta. O padrão (120) é alto de
+propósito por causa do CGNAT das operadoras móveis brasileiras.
+
+### O que isso NÃO resolve
+
+Ataque distribuído de verdade, com milhares de máquinas, não se resolve dentro do
+Node. Se acontecer, o caminho é pôr um **Cloudflare na frente** (plano grátis já
+proxia WebSocket) ou usar as regras de firewall da própria Fly.
+
 ## Aguenta quanta gente?
 
 Medido com [test/load.js](test/load.js), 1000 conexões reais numa máquina comum:
@@ -122,6 +156,7 @@ banda — o maior custo de um chat — na mesma proporção, e ainda deixa o pap
 
 ```bash
 node test/load.js 1000 40 15    # 1000 clientes, 40 msg/s, 15 segundos
+# num teste local, suba MAX_SOCKETS_PER_IP: tudo vem do mesmo IP
 ```
 
 ## Deploy
@@ -157,6 +192,10 @@ docker run -p 3000:3000 -e ALLOWED_ORIGIN=https://seu-dominio.com chatmaromba
 | `ROOM_CAPACITY` | `250` | Pessoas por sala antes de abrir uma divisão nova |
 | `BAN_BY_IP` | `1` | `0` desliga o reforço de IP no banimento |
 | `IP_SALT` | sorteado | Fixe para os castigos sobreviverem a um restart |
+| `MAX_SOCKETS_TOTAL` | `3000` | Teto global de conexões |
+| `MAX_SOCKETS_PER_IP` | `120` | Conexões por IP (alto por causa do CGNAT) |
+| `NEW_PER_MINUTE_PER_IP` | `90` | Conexões novas por minuto, por IP |
+| `TRUST_PROXY` | auto | `1` força confiar no proxy, `0` desliga |
 
 ## Antes de colocar no ar
 

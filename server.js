@@ -11,6 +11,7 @@ const express = require('express');
 const { Server } = require('socket.io');
 const { THEMES, STATES, buildRooms } = require('./shared/rooms');
 const mod = require('./shared/moderation');
+const guard = require('./shared/guard');
 
 const PORT = process.env.PORT || 3000;
 const HISTORY_SIZE = 80;          // mensagens guardadas por sala
@@ -61,18 +62,59 @@ const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: ALLOWED_ORIGIN } });
 
-app.set('trust proxy', 1);   // atrás do proxy do host (Render, Railway, Fly...)
+const io = new Server(server, {
+  cors: { origin: ALLOWED_ORIGIN },
+  /**
+   * O padrão do socket.io aceita 1 MB por evento. Nenhuma mensagem legítima
+   * daqui passa de 500 caracteres, então 16 KB já é folgado — e corta na raiz
+   * o truque de encher a memória mandando eventos gigantes.
+   */
+  maxHttpBufferSize: 16 * 1024,
+  pingInterval: 25_000,
+  pingTimeout: 20_000,
+  connectTimeout: 20_000
+});
+
+app.disable('x-powered-by');   // não anuncia o que roda aqui dentro
+app.set('trust proxy', guard.BEHIND_PROXY ? 1 : false);   // só confia se houver proxy mesmo
+
+/**
+ * Content-Security-Policy: mesmo que uma falha de escape passasse, o navegador
+ * se recusaria a rodar script que não venha daqui. É a segunda tranca da porta.
+ */
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' https://fonts.gstatic.com",
+  "img-src 'self' data:",
+  "connect-src 'self' ws: wss:",
+  "form-action 'self'",
+  "base-uri 'self'",
+  "object-src 'none'",
+  "frame-ancestors 'none'"
+].join('; ');
 
 app.use((_req, res, next) => {
+  res.setHeader('Content-Security-Policy', CSP);
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=(), payment=()');
+  res.setHeader('Strict-Transport-Security', 'max-age=15552000; includeSubDomains');
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
   next();
 });
 
-app.use(express.static(path.join(__dirname, 'public'), { maxAge: '1h' }));
+app.use(guard.httpLimiter({ perMinute: 300, burst: 90 }));
+guard.startJanitor();
+
+app.use(express.static(path.join(__dirname, 'public'), {
+  maxAge: '1h',
+  dotfiles: 'ignore',
+  index: 'index.html'
+}));
 
 app.get('/api/rooms', (_req, res) => {
   res.json({ themes: THEMES, states: STATES });
@@ -86,8 +128,12 @@ app.get('/health', (_req, res) => res.json({
   ok: true,
   uptime: process.uptime(),
   sockets: users.size,
-  memory: process.memoryUsage()
+  memory: process.memoryUsage(),
+  guard: guard.snapshot()
 }));
+
+// nada além do que está mapeado acima
+app.use((_req, res) => res.status(404).json({ error: 'não existe' }));
 
 // ---------------------------------------------------------------- helpers
 
@@ -360,10 +406,21 @@ io.on('connection', (socket) => {
     return;
   }
 
+  // teto de conexões: impede que um script sozinho ocupe a máquina inteira
+  const admission = guard.admit(key.ipKey, users.size);
+  if (!admission.ok) {
+    console.warn(`  [guard] conexão recusada: ${admission.reason}`);
+    socket.emit('overloaded', { text: 'Muita gente entrando agora. Tenta de novo em instantes.' });
+    socket.disconnect(true);
+    return;
+  }
+  socket.once('disconnect', () => guard.release(key.ipKey));
+
   const user = {
     nick: 'Visitante',
     nickKey: null,
     key,
+    budget: guard.createBudget(),
     avatar: pick(AVATARS),
     color: pick(NICK_COLORS),
     roomId: null,
@@ -374,6 +431,18 @@ io.on('connection', (socket) => {
     joined: false
   };
   users.set(socket.id, user);
+
+  /**
+   * Freio por evento. Quem estoura a cota é ignorado em silêncio — sem
+   * mensagem de erro detalhada, que só ajudaria quem está testando o limite.
+   */
+  const within = (event, ack) => {
+    if (guard.allow(user.budget, event)) return true;
+    if (typeof ack === 'function') {
+      ack({ ok: false, error: 'rate-limit', message: 'Devagar aí. Tenta de novo em instantes.' });
+    }
+    return false;
+  };
 
   socket.emit('welcome', {
     id: socket.id,
@@ -390,6 +459,7 @@ io.on('connection', (socket) => {
 
   socket.on('check-nick', (payload = {}, ack) => {
     if (typeof ack !== 'function') return;
+    if (!within('check-nick', ack)) return;
     const nick = sanitizeNick(payload.nick);
     if (nick.length < MIN_NICK_LEN) return ack({ nick, available: false, error: 'nick-invalid' });
     ack({ nick, available: !isNickTaken(nick, socket.id) });
@@ -397,6 +467,7 @@ io.on('connection', (socket) => {
 
   socket.on('login', (payload = {}, ack) => {
     const reply = (data) => { if (typeof ack === 'function') ack(data); };
+    if (!within('login', ack)) return;
     const requested = sanitizeNick(payload.nick);
 
     if (requested.length < MIN_NICK_LEN) {
@@ -435,9 +506,21 @@ io.on('connection', (socket) => {
 
   socket.on('join', (payload = {}, ack) => {
     const reply = (data) => { if (typeof ack === 'function') ack(data); };
+    if (!within('join', ack)) return;
     const requested = String(payload.roomId || '');
 
-    if (!ROOMS.has(baseRoomId(requested))) {
+    /**
+     * O nome da sala vem do cliente, então precisa passar por porteiro:
+     * o tema tem que existir E o número da divisão tem que estar na faixa.
+     * Sem isso, dava para pedir "tema:geral~999999" e fabricar salas
+     * fantasma sem limite, cada uma comendo um pedaço da memória.
+     */
+    if (!ROOMS.has(baseRoomId(requested)) || requested.length > 80) {
+      return reply({ ok: false, error: 'Sala inexistente' });
+    }
+    const askedShard = shardNumber(requested);
+    if (!Number.isInteger(askedShard) || askedShard < 1 || askedShard > MAX_SHARDS
+        || shardId(baseRoomId(requested), askedShard) !== requested) {
       return reply({ ok: false, error: 'Sala inexistente' });
     }
     if (!user.joined) {
@@ -534,6 +617,7 @@ io.on('connection', (socket) => {
 
   socket.on('report', (payload = {}, ack) => {
     const reply = (data) => { if (typeof ack === 'function') ack(data); };
+    if (!within('report', ack)) return;
     if (!user.joined || !user.roomId) return reply({ ok: false });
 
     const now = Date.now();
@@ -560,12 +644,19 @@ io.on('connection', (socket) => {
 
   socket.on('mod-login', (payload = {}, ack) => {
     const reply = (data) => { if (typeof ack === 'function') ack(data); };
+    if (!within('mod-login', ack)) return;
     if (!MOD_PASSWORD) {
       return reply({ ok: false, message: 'Moderação desligada: falta definir MOD_PASSWORD no servidor.' });
     }
-    if (!safeEqual(String(payload.password || ''), MOD_PASSWORD)) {
-      console.warn(`  [mod] senha errada de ${user.nick} (${user.key})`);
-      return reply({ ok: false, message: 'Senha incorreta.' });
+    if (!safeEqual(String(payload.password || '').slice(0, 200), MOD_PASSWORD)) {
+      const espera = guard.cooldown(user.budget, 'mod-login');
+      console.warn(`  [mod] senha errada de "${user.nick}" (${user.key.ipKey})`);
+      return reply({
+        ok: false,
+        message: espera
+          ? `Senha incorreta. Novas tentativas só em ${Math.ceil(espera / 60)} min.`
+          : 'Senha incorreta.'
+      });
     }
 
     user.isMod = true;
@@ -580,6 +671,7 @@ io.on('connection', (socket) => {
 
   socket.on('mod-action', (payload = {}, ack) => {
     const reply = (data) => { if (typeof ack === 'function') ack(data); };
+    if (!within('mod-action', ack)) return;
     if (!user.isMod) return reply({ ok: false, message: 'Você não é moderador.' });
 
     const action = String(payload.action || '');
@@ -650,6 +742,7 @@ io.on('connection', (socket) => {
 
   socket.on('typing', (payload = {}) => {
     if (!user.roomId) return;
+    if (!guard.allow(user.budget, 'typing')) return;
     socket.to(user.roomId).emit('typing', {
       id: socket.id,
       nick: user.nick,
