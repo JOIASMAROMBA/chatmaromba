@@ -1135,104 +1135,164 @@ button, input { font: inherit; color: inherit; }
 .empty-state h4 { font-size: 19px; margin-bottom: 6px; }
 .empty-state p { max-width: 340px; margin: 0; font-size: 13.5px; color: var(--txt-faint); }
 .empty-state p strong { color: var(--txt-dim); font-weight: 600; }
-/* ---- saguão: a lista de salas como tela ---- */
+/* ---- saguão: portas para entrar ---- */
 
 .lobby {
   max-width: 620px;
   margin: 0 auto;
-  padding: 8px 0 24px;
+  padding: 10px 0 28px;
 }
 
-.lobby-list { display: flex; flex-direction: column; gap: 10px; }
-
-.lobby-card {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  width: 100%;
-  padding: 15px 18px;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.035);
-  text-align: left;
-  cursor: pointer;
-  opacity: 0;
-  animation: lobby-in 0.42s cubic-bezier(0.2, 0.9, 0.25, 1.05) forwards;
-  transition: border-color 0.18s, background 0.18s, transform 0.18s;
-}
-.lobby-card:hover {
-  border-color: var(--line-strong);
-  background: rgba(255, 255, 255, 0.07);
-  border-color: color-mix(in srgb, var(--cor) 55%, transparent);
-  background: color-mix(in srgb, var(--cor) 12%, transparent);
-  transform: translateY(-2px);
-}
-
-@keyframes lobby-in {
-  from { opacity: 0; transform: translateY(14px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-.lobby-icon {
-  display: grid;
-  place-items: center;
-  flex: 0 0 50px;
-  height: 50px;
-  border-radius: 15px;
-  font-size: 25px;
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid var(--line-strong);
-  background: color-mix(in srgb, var(--cor) 20%, transparent);
-  border-color: color-mix(in srgb, var(--cor) 42%, transparent);
-}
-
-.lobby-body { flex: 1; min-width: 0; }
-.lobby-name {
-  display: block;
-  font-family: 'Sora', sans-serif;
-  font-size: 17px;
+.lobby-titulo {
+  margin: 0 0 22px;
+  font-size: 15px;
   font-weight: 700;
-  letter-spacing: -0.02em;
-  color: #f0f0f7;
-}
-.lobby-tag {
-  display: block;
-  margin-top: 2px;
-  font-size: 12.8px;
-  color: var(--txt-faint);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  text-align: center;
+  color: #fff;
 }
 
-/* o número é o que decide a escolha, então ele domina o cartão */
-.lobby-count {
-  flex: 0 0 auto;
+.lobby-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 22px 18px;
+}
+
+.porta {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1px;
-  min-width: 58px;
-  padding: 6px 10px;
-  border-radius: 12px;
-  background: rgba(182, 255, 60, 0.12);
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  opacity: 0;
+  animation: porta-in 0.45s cubic-bezier(0.2, 0.9, 0.25, 1.05) forwards;
 }
-.lobby-count strong {
-  font-family: 'Sora', sans-serif;
-  font-size: 19px;
-  font-weight: 700;
+
+@keyframes porta-in {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/**
+ * O vão é o batente: fica parado e guarda a luz do outro lado.
+ * A folha é a porta em si, e é ela que gira ao passar o mouse.
+ */
+.porta-vao {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 5 / 6;
+  border-radius: 46% 46% 10px 10px / 26% 26% 3% 3%;
+  perspective: 900px;
+  background: #07070d;
+  border: 2px solid var(--line-strong);
+  border-color: color-mix(in srgb, var(--cor) 38%, transparent);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+/* a luz que vaza de dentro da sala quando a porta abre */
+.porta-luz {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(ellipse at 62% 62%, rgba(255, 255, 255, 0.25), transparent 62%);
+  background: radial-gradient(ellipse at 62% 62%,
+    color-mix(in srgb, var(--cor) 72%, #fff 10%), transparent 66%);
+  opacity: 0.35;
+  transition: opacity 0.4s;
+}
+
+.porta-folha {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: inherit;
+  transform-origin: left center;
+  transform: rotateY(0deg);
+  transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.3, 1), filter 0.4s;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.03) 45%, rgba(0, 0, 0, 0.35));
+  background:
+    linear-gradient(160deg,
+      color-mix(in srgb, var(--cor) 42%, transparent),
+      color-mix(in srgb, var(--cor) 14%, transparent) 48%,
+      rgba(0, 0, 0, 0.42));
+  border-right: 2px solid rgba(0, 0, 0, 0.45);
+  backface-visibility: hidden;
+}
+
+/* as almofadas da porta, em relevo */
+.porta-folha::before {
+  content: '';
+  position: absolute;
+  inset: 14% 16% 12%;
+  border-radius: 40% 40% 6px 6px / 18% 18% 3% 3%;
+  border: 1.5px solid rgba(255, 255, 255, 0.13);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  pointer-events: none;
+}
+
+.porta-icone {
+  position: relative;
+  font-size: 34px;
   line-height: 1;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.55));
+  transition: transform 0.4s;
+}
+
+.porta-macaneta {
+  position: absolute;
+  right: 11%;
+  top: 56%;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: linear-gradient(140deg, #f4e3b0, #a98b3d);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.3), 0 2px 5px rgba(0, 0, 0, 0.5);
+}
+
+/* abrir */
+.porta:hover .porta-folha,
+.porta:focus-visible .porta-folha {
+  transform: rotateY(-58deg);
+  filter: brightness(0.82);
+}
+.porta:hover .porta-luz,
+.porta:focus-visible .porta-luz { opacity: 1; }
+.porta:hover .porta-vao,
+.porta:focus-visible .porta-vao {
+  border-color: color-mix(in srgb, var(--cor) 80%, transparent);
+  box-shadow: 0 18px 44px color-mix(in srgb, var(--cor) 30%, transparent);
+}
+.porta:active .porta-folha { transform: rotateY(-72deg); }
+.porta:focus-visible { outline: none; }
+
+.porta-nome {
+  font-family: 'Sora', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #fff;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.porta-gente {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  margin-top: -4px;
+  font-size: 11.5px;
   color: var(--lime);
 }
-.lobby-count small {
-  font-size: 9.5px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: rgba(182, 255, 60, 0.75);
-}
-.lobby-count.is-zero { background: rgba(255, 255, 255, 0.05); }
-.lobby-count.is-zero strong { color: var(--txt-faint); }
-.lobby-count.is-zero small { color: var(--txt-faint); }
+.porta-gente strong { font-family: 'Sora', sans-serif; font-weight: 700; font-size: 13px; }
+.porta-gente small { font-size: 11px; opacity: 0.8; }
+.porta-gente.is-zero { color: var(--txt-faint); }
 
 .lobby-estados {
   display: flex;
@@ -1430,6 +1490,13 @@ button, input { font: inherit; color: inherit; }
 /* composer */
 
 .composer { padding: 8px 16px 16px; max-width: 100%; overflow: hidden; }
+
+/**
+ * O [hidden] do navegador vale como `display: none`, mas qualquer regra
+ * nossa que fixe display ganha dele. Sem esta linha, a barra "Respondendo"
+ * aparecia vazia e permanente na tela.
+ */
+.reply-preview[hidden] { display: none; }
 
 .reply-preview {
   display: flex;

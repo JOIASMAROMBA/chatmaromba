@@ -759,8 +759,8 @@
        * está bombando já entrou no lugar errado antes de ver a lista.
        * No celular a gaveta abre sozinha, senão a lista fica escondida.
        */
-      el.messageInput.placeholder = 'Escolha uma sala para começar a falar';
-      el.roomName.textContent = 'Salas';
+      mostrarComposer(false);
+      el.roomName.textContent = 'CHATMAROMBA';
       el.roomIcon.textContent = '🏠';
       renderLobby();
     });
@@ -925,24 +925,28 @@
       const id = 'tema:' + tema.id;
       const n = state.counts[id] || 0;
       return (
-        '<button type="button" class="lobby-card" data-room="' + id + '"'
-        + ' style="--cor: ' + escapeHtml(tema.color) + '">'
-        + '<span class="lobby-icon">' + tema.icon + '</span>'
-        + '<span class="lobby-body">'
-        +   '<span class="lobby-name">' + escapeHtml(tema.name) + '</span>'
-        +   '<span class="lobby-tag">' + escapeHtml(tema.tagline) + '</span>'
-        + '</span>'
-        + '<span class="lobby-count' + (n ? '' : ' is-zero') + '">'
-        +   '<strong data-count-for="' + id + '">' + n + '</strong>'
-        +   '<small>' + (n === 1 ? 'pessoa' : 'pessoas') + '</small>'
-        + '</span>'
+        '<button type="button" class="porta" data-room="' + id + '"'
+        + ' style="--cor: ' + escapeHtml(tema.color) + '"'
+        + ' title="' + escapeHtml(tema.tagline) + '">'
+        +   '<span class="porta-vao">'
+        +     '<span class="porta-luz"></span>'
+        +     '<span class="porta-folha">'
+        +       '<span class="porta-icone">' + tema.icon + '</span>'
+        +       '<span class="porta-macaneta"></span>'
+        +     '</span>'
+        +   '</span>'
+        +   '<span class="porta-nome">' + escapeHtml(tema.name) + '</span>'
+        +   '<span class="porta-gente' + (n ? '' : ' is-zero') + '">'
+        +     '<strong data-count-for="' + id + '">' + n + '</strong> '
+        +     '<small>' + (n === 1 ? 'pessoa' : 'pessoas') + '</small>'
+        +   '</span>'
         + '</button>'
       );
     }).join('');
 
-    // a cascata: cada cartão entra um pouquinho depois do anterior
-    el.lobbyList.querySelectorAll('.lobby-card').forEach((card, i) => {
-      card.style.animationDelay = (i * 55) + 'ms';
+    // a cascata: cada porta entra um pouquinho depois da anterior
+    el.lobbyList.querySelectorAll('.porta').forEach((porta, i) => {
+      porta.style.animationDelay = (i * 60) + 'ms';
     });
   }
 
@@ -952,13 +956,24 @@
    * de quem está com a sala vazia.
    */
   function atualizarContagemSaguao() {
-    el.lobbyList.querySelectorAll('.lobby-card').forEach((card) => {
+    el.lobbyList.querySelectorAll('.porta').forEach((card) => {
       const n = state.counts[card.dataset.room] || 0;
-      const caixa = card.querySelector('.lobby-count');
-      const etiqueta = card.querySelector('.lobby-count small');
+      const caixa = card.querySelector('.porta-gente');
+      const etiqueta = card.querySelector('.porta-gente small');
       if (caixa) caixa.classList.toggle('is-zero', n === 0);
       if (etiqueta) etiqueta.textContent = n === 1 ? 'pessoa' : 'pessoas';
     });
+  }
+
+  /**
+   * Enquanto a pessoa escolhe a sala não existe campo de digitar: não há
+   * para onde mandar mensagem, e um campo apagado ali só ocupa a tela e
+   * sugere que falta alguma coisa.
+   */
+  function mostrarComposer(visivel) {
+    el.composer.hidden = !visivel;
+    el.typingBar.hidden = !visivel;
+    if (!visivel) clearReply();
   }
 
   /** true enquanto a pessoa ainda não entrou em sala nenhuma */
@@ -1032,6 +1047,7 @@
       el.roomName.textContent = res.room.name;
       el.roomTagline.textContent = res.room.tagline;
 
+      mostrarComposer(true);
       el.messageInput.placeholder = 'Manda a braba em ' + res.room.name + '...';
       updateComposerLock();
 

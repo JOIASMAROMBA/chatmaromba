@@ -146,16 +146,41 @@ function wait(ms) {
     /joinRoom\((['"])tema:/.test(script) ? 'ainda entra sozinho' : 'ok');
 
   /**
+   * Elemento com `hidden` que o CSS reexibe.
+   *
+   * O `hidden` do navegador vale como display:none, mas é a regra mais
+   * fraca que existe: qualquer `display: flex` nosso ganha dela. Foi assim
+   * que a barra "Respondendo" ficou visível e vazia na tela, permanente.
+   */
+  // sem tirar os comentários, o seletor capturado vem colado ao comentário
+  // anterior e a comparação nunca casa — o teste passaria sempre
+  const folhaLimpa = folha.replace(/\/\*[\s\S]*?\*\//g, '');
+  const comDisplay = new Set();
+  [...folhaLimpa.matchAll(/([^{}]+)\{([^}]*)\}/g)].forEach(([, sel, corpo]) => {
+    if (/display:\s*(flex|grid|block|inline-flex|inline-block)/.test(corpo)) {
+      sel.split(',').forEach((s) => comDisplay.add(s.trim()));
+    }
+  });
+  const classesEscondidas = [...new Set([
+    ...[...paginaHtml.matchAll(/<[^>]*\sclass="([^"]+)"[^>]*\shidden/g)].map((m) => m[1]),
+    ...[...paginaHtml.matchAll(/<[^>]*\shidden[^>]*\sclass="([^"]+)"/g)].map((m) => m[1])
+  ].flatMap((c) => c.split(' ')))].filter(Boolean);
+  const reexibidos = classesEscondidas.filter((c) =>
+    comDisplay.has('.' + c) && !folhaLimpa.includes('.' + c + '[hidden]'));
+  check('nada que está escondido é reexibido pelo CSS',
+    reexibidos.length === 0, reexibidos.length ? reexibidos.join(', ') : 'ok');
+
+  /**
    * O saguão é a primeira tela depois do apelido: a lista de salas com a
    * contagem de gente em cada uma. Se ele não desenhar, a pessoa cai numa
    * área vazia sem saber para onde ir.
    */
   check('a página tem o saguão de salas',
     /id="lobby-list"/.test(paginaHtml) && /id="lobby"/.test(paginaHtml));
-  check('cada sala do saguão leva a um destino e mostra a contagem',
-    script.includes('class="lobby-card" data-room="')
-      && script.includes('data-count-for="') && script.includes('lobby-count'),
-    script.includes('lobby-card') ? 'presente' : 'sem cartões');
+  check('cada porta leva a um destino e mostra a contagem',
+    script.includes('class="porta" data-room="')
+      && script.includes('data-count-for="') && script.includes('porta-gente'),
+    script.includes('porta-folha') ? 'presente' : 'sem portas');
 
   /** o top 5 precisa levar para a sala — sem isso ele é só enfeite */
   check('itens do ranking carregam a sala de destino',
