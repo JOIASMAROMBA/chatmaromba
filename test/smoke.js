@@ -145,6 +145,18 @@ function wait(ms) {
     !/joinRoom\((['"])tema:/.test(script),
     /joinRoom\((['"])tema:/.test(script) ? 'ainda entra sozinho' : 'ok');
 
+  /**
+   * O saguão é a primeira tela depois do apelido: a lista de salas com a
+   * contagem de gente em cada uma. Se ele não desenhar, a pessoa cai numa
+   * área vazia sem saber para onde ir.
+   */
+  check('a página tem o saguão de salas',
+    /id="lobby-list"/.test(paginaHtml) && /id="lobby"/.test(paginaHtml));
+  check('cada sala do saguão leva a um destino e mostra a contagem',
+    script.includes('class="lobby-card" data-room="')
+      && script.includes('data-count-for="') && script.includes('lobby-count'),
+    script.includes('lobby-card') ? 'presente' : 'sem cartões');
+
   /** o top 5 precisa levar para a sala — sem isso ele é só enfeite */
   check('itens do ranking carregam a sala de destino',
     /data-room="'\s*\+\s*escapeHtml\(item\.salaId\)/.test(script),

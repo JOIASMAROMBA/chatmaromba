@@ -58,7 +58,9 @@
     themeList: $('#theme-list'),
     trendList: $('#trend-list'),
     trendEmpty: $('#trend-empty'),
-    verSalas: $('#ver-salas'),
+    lobby: $('#lobby'),
+    lobbyList: $('#lobby-list'),
+    lobbyEstados: $('#lobby-estados'),
     stateList: $('#state-list'),
 
     meAvatar: $('#me-avatar'),
@@ -72,7 +74,6 @@
     roomOnline: $('#room-online'),
 
     messages: $('#messages'),
-    emptyState: $('#empty-state'),
     typingBar: $('#typing-bar'),
 
     composer: $('#composer'),
@@ -758,9 +759,10 @@
        * está bombando já entrou no lugar errado antes de ver a lista.
        * No celular a gaveta abre sozinha, senão a lista fica escondida.
        */
-      el.messageInput.placeholder = 'Escolha uma sala ao lado para começar a falar';
-      setSidebar(window.innerWidth <= 780);
-      el.searchInput.focus({ preventScroll: true });
+      el.messageInput.placeholder = 'Escolha uma sala para começar a falar';
+      el.roomName.textContent = 'Salas';
+      el.roomIcon.textContent = '🏠';
+      renderLobby();
     });
   }
 
@@ -909,6 +911,76 @@
     });
   });
 
+  // ------------------------------------------------------ saguão de salas
+
+  /**
+   * A lista de salas ocupa a área do chat enquanto a pessoa não escolheu
+   * nenhuma. É a tela em si, não um aviso pedindo que ela escolha: o que
+   * decide é ver quanta gente tem em cada sala, não ler uma instrução.
+   */
+  function renderLobby() {
+    if (!el.lobbyList || !state.rooms.themes.length) return;
+
+    el.lobbyList.innerHTML = state.rooms.themes.map((tema) => {
+      const id = 'tema:' + tema.id;
+      const n = state.counts[id] || 0;
+      return (
+        '<button type="button" class="lobby-card" data-room="' + id + '"'
+        + ' style="--cor: ' + escapeHtml(tema.color) + '">'
+        + '<span class="lobby-icon">' + tema.icon + '</span>'
+        + '<span class="lobby-body">'
+        +   '<span class="lobby-name">' + escapeHtml(tema.name) + '</span>'
+        +   '<span class="lobby-tag">' + escapeHtml(tema.tagline) + '</span>'
+        + '</span>'
+        + '<span class="lobby-count' + (n ? '' : ' is-zero') + '">'
+        +   '<strong data-count-for="' + id + '">' + n + '</strong>'
+        +   '<small>' + (n === 1 ? 'pessoa' : 'pessoas') + '</small>'
+        + '</span>'
+        + '</button>'
+      );
+    }).join('');
+
+    // a cascata: cada cartão entra um pouquinho depois do anterior
+    el.lobbyList.querySelectorAll('.lobby-card').forEach((card, i) => {
+      card.style.animationDelay = (i * 55) + 'ms';
+    });
+  }
+
+  /**
+   * refreshCounts() já atualiza o número, porque o <strong> carrega
+   * data-count-for. Falta o que ele não sabe: o plural e o tom apagado
+   * de quem está com a sala vazia.
+   */
+  function atualizarContagemSaguao() {
+    el.lobbyList.querySelectorAll('.lobby-card').forEach((card) => {
+      const n = state.counts[card.dataset.room] || 0;
+      const caixa = card.querySelector('.lobby-count');
+      const etiqueta = card.querySelector('.lobby-count small');
+      if (caixa) caixa.classList.toggle('is-zero', n === 0);
+      if (etiqueta) etiqueta.textContent = n === 1 ? 'pessoa' : 'pessoas';
+    });
+  }
+
+  /** true enquanto a pessoa ainda não entrou em sala nenhuma */
+  function noSaguao() {
+    return !state.currentRoom && Boolean(el.lobbyList && el.lobbyList.children.length);
+  }
+
+  if (el.lobbyList) {
+    el.lobbyList.addEventListener('click', (event) => {
+      const card = event.target.closest('[data-room]');
+      if (card) joinRoom(card.dataset.room);
+    });
+  }
+
+  if (el.lobbyEstados) {
+    el.lobbyEstados.addEventListener('click', () => {
+      const aba = document.querySelector('.tab[data-tab="estados"]');
+      if (aba) aba.click();
+      setSidebar(true);
+    });
+  }
+
   // ------------------------------------------------------ assuntos do momento
 
   /**
@@ -1020,6 +1092,8 @@
 
   function appendMessage(msg, opts) {
     const options = opts || {};
+    const saguao = el.messages.querySelector('#lobby');
+    if (saguao) saguao.remove();
     const emptyInside = el.messages.querySelector('.empty-state');
     if (emptyInside) emptyInside.remove();
 
@@ -1321,7 +1395,6 @@
     el.scrim.hidden = !open;
   }
   el.openSidebar.addEventListener('click', () => setSidebar(true));
-  el.verSalas.addEventListener('click', () => setSidebar(true));
   el.closeSidebar.addEventListener('click', () => setSidebar(false));
   el.scrim.addEventListener('click', () => setSidebar(false));
 
@@ -1363,6 +1436,8 @@
       state.counts = data.counts || {};
       el.gateOnline.textContent = data.online || 0;
       refreshCounts();
+      // no saguão o número é a informação principal: precisa reagir na hora
+      if (noSaguao()) atualizarContagemSaguao();
     });
 
     // as mensagens chegam em lote: uma só em sala calma, várias em sala cheia
@@ -1514,6 +1589,7 @@
     el.roomTagline.textContent = el.gateRooms.textContent + ' salas esperando você';
 
     renderRoomLists();
+    renderLobby();
     el.nickInput.focus();
   }
 
