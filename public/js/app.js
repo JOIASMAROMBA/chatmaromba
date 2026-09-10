@@ -925,25 +925,24 @@
       const id = 'tema:' + tema.id;
       const n = state.counts[id] || 0;
       return (
-        '<button type="button" class="porta" data-room="' + id + '"'
-        + ' style="--cor: ' + escapeHtml(tema.color) + '"'
-        + ' title="' + escapeHtml(tema.tagline) + '">'
-        +   '<span class="porta-fig">'
-        +     '<span class="porta-madeira"><i class="porta-macaneta"></i></span>'
-        +     '<span class="porta-selo">' + tema.icon + '</span>'
+        '<button type="button" class="sala" data-room="' + id + '"'
+        + ' style="--cor: ' + escapeHtml(tema.color) + '">'
+        +   '<span class="sala-icone">' + tema.icon + '</span>'
+        +   '<span class="sala-info">'
+        +     '<span class="sala-nome">' + escapeHtml(tema.name) + '</span>'
+        +     '<span class="sala-desc">' + escapeHtml(tema.tagline) + '</span>'
         +   '</span>'
-        +   '<span class="porta-nome">' + escapeHtml(tema.name) + '</span>'
-        +   '<span class="porta-gente' + (n ? '' : ' is-zero') + '">'
-        +     '<strong data-count-for="' + id + '">' + n + '</strong> '
-        +     '<small>' + (n === 1 ? 'pessoa' : 'pessoas') + '</small>'
+        +   '<span class="sala-n' + (n ? '' : ' is-zero') + '">'
+        +     '<strong data-count-for="' + id + '">' + n + '</strong>'
+        +     '<i>online</i>'
         +   '</span>'
         + '</button>'
       );
     }).join('');
 
     // a cascata: cada porta entra um pouquinho depois da anterior
-    el.lobbyList.querySelectorAll('.porta').forEach((porta, i) => {
-      porta.style.animationDelay = (i * 60) + 'ms';
+    el.lobbyList.querySelectorAll('.sala').forEach((linha, i) => {
+      linha.style.animationDelay = (i * 45) + 'ms';
     });
   }
 
@@ -953,12 +952,10 @@
    * de quem está com a sala vazia.
    */
   function atualizarContagemSaguao() {
-    el.lobbyList.querySelectorAll('.porta').forEach((card) => {
-      const n = state.counts[card.dataset.room] || 0;
-      const caixa = card.querySelector('.porta-gente');
-      const etiqueta = card.querySelector('.porta-gente small');
+    el.lobbyList.querySelectorAll('.sala').forEach((linha) => {
+      const n = state.counts[linha.dataset.room] || 0;
+      const caixa = linha.querySelector('.sala-n');
       if (caixa) caixa.classList.toggle('is-zero', n === 0);
-      if (etiqueta) etiqueta.textContent = n === 1 ? 'pessoa' : 'pessoas';
     });
   }
 

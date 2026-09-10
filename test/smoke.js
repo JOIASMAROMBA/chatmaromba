@@ -177,10 +177,10 @@ function wait(ms) {
    */
   check('a página tem o saguão de salas',
     /id="lobby-list"/.test(paginaHtml) && /id="lobby"/.test(paginaHtml));
-  check('cada porta leva a um destino e mostra a contagem',
-    script.includes('class="porta" data-room="')
-      && script.includes('data-count-for="') && script.includes('porta-gente'),
-    script.includes('porta-madeira') ? 'presente' : 'sem portas');
+  check('cada sala da lista leva a um destino e mostra a contagem',
+    script.includes('class="sala" data-room="')
+      && script.includes('data-count-for="') && script.includes('sala-n'),
+    script.includes('sala-icone') ? 'presente' : 'sem salas');
 
   /** o top 5 precisa levar para a sala — sem isso ele é só enfeite */
   check('itens do ranking carregam a sala de destino',
