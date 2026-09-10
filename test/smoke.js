@@ -134,6 +134,17 @@ function wait(ms) {
     /interactive-widget=resizes-content/.test(paginaHtml),
     /viewport/.test(paginaHtml) ? 'presente' : 'sem meta viewport');
 
+  /**
+   * Depois de entrar, a pessoa escolhe a sala — ninguém é jogado no Geral.
+   *
+   * Cair direto numa sala tira da pessoa a única decisão que importa na
+   * chegada, e quem queria a sala do próprio estado já entrou no lugar
+   * errado antes de ver a lista.
+   */
+  check('ninguém entra em sala automaticamente ao logar',
+    !/joinRoom\((['"])tema:/.test(script),
+    /joinRoom\((['"])tema:/.test(script) ? 'ainda entra sozinho' : 'ok');
+
   /** o top 5 precisa levar para a sala — sem isso ele é só enfeite */
   check('itens do ranking carregam a sala de destino',
     /data-room="'\s*\+\s*escapeHtml\(item\.salaId\)/.test(script),

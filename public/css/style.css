@@ -1134,6 +1134,19 @@ button, input { font: inherit; color: inherit; }
 }
 .empty-state h4 { font-size: 19px; margin-bottom: 6px; }
 .empty-state p { max-width: 340px; margin: 0; font-size: 13.5px; color: var(--txt-faint); }
+.empty-state p strong { color: var(--txt-dim); font-weight: 600; }
+/**
+ * Seletor com o pai de propósito: no celular a regra .only-mobile define
+ * display:grid, e isso empilharia o texto e a seta um sobre o outro.
+ */
+.empty-state .btn-abrir-salas {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: auto;
+  margin-top: 20px;
+  padding: 12px 22px;
+}
 
 /* mensagens */
 

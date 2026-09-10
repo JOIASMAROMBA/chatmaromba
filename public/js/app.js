@@ -58,6 +58,7 @@
     themeList: $('#theme-list'),
     trendList: $('#trend-list'),
     trendEmpty: $('#trend-empty'),
+    verSalas: $('#ver-salas'),
     stateList: $('#state-list'),
 
     meAvatar: $('#me-avatar'),
@@ -748,9 +749,18 @@
       el.gate.classList.add('is-out');
       setTimeout(() => { el.gate.style.display = 'none'; }, 380);
       el.app.hidden = false;
-      if (window.innerWidth <= 780) setSidebar(true);
-      // já abre no papo geral
-      joinRoom('tema:geral');
+
+      /**
+       * Ninguém entra em sala nenhuma automaticamente.
+       *
+       * Cair direto no Geral tira da pessoa a única decisão que importa
+       * na chegada — e quem queria a sala do seu estado ou o assunto que
+       * está bombando já entrou no lugar errado antes de ver a lista.
+       * No celular a gaveta abre sozinha, senão a lista fica escondida.
+       */
+      el.messageInput.placeholder = 'Escolha uma sala ao lado para começar a falar';
+      setSidebar(window.innerWidth <= 780);
+      el.searchInput.focus({ preventScroll: true });
     });
   }
 
@@ -1311,6 +1321,7 @@
     el.scrim.hidden = !open;
   }
   el.openSidebar.addEventListener('click', () => setSidebar(true));
+  el.verSalas.addEventListener('click', () => setSidebar(true));
   el.closeSidebar.addEventListener('click', () => setSidebar(false));
   el.scrim.addEventListener('click', () => setSidebar(false));
 
