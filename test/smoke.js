@@ -180,7 +180,7 @@ function wait(ms) {
   check('cada porta leva a um destino e mostra a contagem',
     script.includes('class="porta" data-room="')
       && script.includes('data-count-for="') && script.includes('porta-gente'),
-    script.includes('porta-folha') ? 'presente' : 'sem portas');
+    script.includes('porta-madeira') ? 'presente' : 'sem portas');
 
   /** o top 5 precisa levar para a sala — sem isso ele é só enfeite */
   check('itens do ranking carregam a sala de destino',
